@@ -95,8 +95,7 @@ struct FeedbackReader: View {
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .top, spacing: 12) {
                     attachmentIcon(file)
-                    fileMetadata(file).frame(minWidth: 180)
-                    Spacer(minLength: 0)
+                    fileMetadata(file).frame(minWidth: 140, maxWidth: .infinity, alignment: .leading)
                     fileButtons(file, isBusy: isBusy)
                 }
                 VStack(alignment: .leading, spacing: 16) {
@@ -125,7 +124,7 @@ struct FeedbackReader: View {
             if let url = store.localURL(file) {
                 Divider()
                 Button("Show in Finder", systemImage: "folder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
-                if file.isPDF { ShareLink(item: FeedbackPDF(url: url, name: file.name), preview: SharePreview(file.name)) }
+                if file.isPDF { ShareLink(item: FeedbackPDF(url: url, name: friendlyName(file)), preview: SharePreview(friendlyName(file))) }
             }
         }
     }
@@ -139,25 +138,24 @@ struct FeedbackReader: View {
         }
     }
     private func fileButtons(_ file: FeedbackAttachment, isBusy: Bool) -> some View {
-        VStack(alignment: .trailing, spacing: 8) {
-            HStack {
+        HStack(spacing: 8) {
                 Button { perform(.open, file: file) } label: {
                     Text(file.isPDF ? "Open PDF" : "Open file").opacity(isBusy ? 0 : 1)
                         .overlay { if isBusy { ProgressView().controlSize(.small) } }
                 }
                     .accessibilityLabel(isBusy ? "Downloading attachment" : (file.isPDF ? "Open PDF" : "Open file"))
-                    .buttonStyle(.borderedProminent).disabled(isBusy)
-                Button("Save…") { perform(.save, file: file) }.disabled(isBusy)
-            }
+                    .buttonStyle(.bordered).disabled(isBusy)
             if !store.designMode {
-                Button("Preview") { perform(.preview, file: file) }.buttonStyle(.link).disabled(isBusy)
+                Button("Quick Look", systemImage: "eye") { perform(.preview, file: file) }
+                    .labelStyle(.iconOnly).help("Quick Look (Space)").disabled(isBusy)
             }
+            Button("Save…") { perform(.save, file: file) }.disabled(isBusy)
         }
     }
     @ViewBuilder private func attachmentIcon(_ file: FeedbackAttachment) -> some View {
         let icon = Image(systemName: "doc.richtext").feedbackFont(.largeTitle).foregroundStyle(.secondary).frame(width: 30)
         if file.isPDF, let url = store.localURL(file) {
-            icon.draggable(FeedbackPDF(url: url, name: file.name))
+            icon.draggable(FeedbackPDF(url: url, name: friendlyName(file)))
                 .help("Drag this PDF into Finder or another app")
                 .accessibilityLabel("Drag " + file.name)
         } else { icon }
@@ -185,7 +183,7 @@ struct FeedbackReader: View {
     }
     private func save(_ file: FeedbackAttachment) async {
         guard let url = await store.obtain(file, itemID: item.id), !Task.isCancelled else { return }
-        let panel = NSSavePanel(); panel.nameFieldStringValue = file.name
+        let panel = NSSavePanel(); panel.nameFieldStringValue = friendlyName(file)
         guard let window = NSApp.keyWindow else { return }
         panel.beginSheetModal(for: window) { response in
             guard response == .OK, let destination = panel.url else { return }

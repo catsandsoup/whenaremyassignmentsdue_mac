@@ -11,6 +11,12 @@ import UniformTypeIdentifiers
         try bytes.write(to: url)
         try FileManager.default.setAttributes([.posixPermissions: 0o400], ofItemAtPath: url.path)
         let item = FeedbackPDF(url: url, name: "Assignment Feedback.pdf")
+        let received = try await receive(item)
+        precondition(received.0 == "Assignment Feedback.pdf", "Native item-provider receiver must get one PDF extension, not a content-hash or duplicate suffix: \(received.0)")
+        precondition(received.1 == bytes, "The native receiving path must preserve PDF bytes")
+        let unicodeName = "Presentation 1 — Feedback.pdf"
+        let unicode = try await receive(FeedbackPDF(url: url, name: unicodeName))
+        precondition(unicode.0 == unicodeName && unicode.1 == bytes, "Native receiving must preserve the readable Unicode filename and bytes")
         let exported = try await item.exported(as: .pdf)
         precondition(exported == bytes, "Drag/share must transfer file bytes, not URL text")
         let destination = root.appendingPathComponent("Export")
@@ -26,6 +32,20 @@ import UniformTypeIdentifiers
         precondition(original == bytes, "Editing an exported copy must not modify the managed original")
         try FileManager.default.removeItem(at: url)
         do { _ = try await item.exported(as: .pdf); preconditionFailure("Missing file exported") } catch {}
-        print("PASS: native PDF Transferable exports document bytes and fails for a missing file")
+        print("PASS: native PDF Transferable/item-provider receivers preserve bytes and ASCII/Unicode filenames, editable copies and missing-file failure")
     }
+    private static func receive(_ item: FeedbackPDF) async throws -> (String, Data) {
+        let provider = NSItemProvider()
+        provider.register(item)
+        return try await withCheckedThrowingContinuation { continuation in
+            _ = provider.loadFileRepresentation(forTypeIdentifier: UTType.pdf.identifier) { receivedURL, error in
+                do {
+                    if let error { throw error }
+                    guard let receivedURL else { throw CocoaError(.fileNoSuchFile) }
+                    continuation.resume(returning: (receivedURL.lastPathComponent, try Data(contentsOf: receivedURL)))
+                } catch { continuation.resume(throwing: error) }
+            }
+        }
+    }
+
 }

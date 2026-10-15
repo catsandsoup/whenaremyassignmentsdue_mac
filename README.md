@@ -82,3 +82,9 @@ Select an assessment in the results list and press **Space** to preview its feed
 **Open in Canvas** opens the selected assessment in the default browser for submission and other Canvas actions. Toolbar actions retain their positions when selection clears, download indicators retain the button's dimensions, and reader sections expose accessibility headings. The app includes its own document/calendar icon. Deadline layout and credential behaviour remain unchanged.
 
 See the [1.4 interaction verification and motion review](docs/interaction-verification-1.4.md). VoiceOver testing was explicitly excluded from this release by the user; real receiving-app drag/drop and frame-level animation profiling are not claimed as passing.
+
+### Attachment controls (1.5)
+
+Open in Canvas and assessment Quick Look have separate native toolbar groups. Attachment Open, Quick Look and Save actions sit together on one row, with a vertically adapting file card for narrower layouts. The title aligns beside the document icon. Drag, Share and Save use the readable document name shown in the reader; original Canvas filenames remain available in the tooltip.
+
+The PDF tests now also receive files through macOS NSItemProvider and verify exact bytes, ASCII/Unicode filenames and a single PDF extension. See the [Finder verification report](docs/finder-drop-verification-1.5.md) for the distinction between receiving-path tests and an actual Finder drop.

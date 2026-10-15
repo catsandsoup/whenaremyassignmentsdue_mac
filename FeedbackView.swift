@@ -60,6 +60,7 @@ struct FeedbackWindowView: View {
                         .disabled(selectedCanvasURL == nil)
                         .help("Open this assessment in your browser for submission and other Canvas actions")
                 }
+                ToolbarSpacer(.fixed, placement: .primaryAction)
                 ToolbarItem(placement: .primaryAction) {
                     Button("Quick Look", systemImage: "eye") { if let selected { showPreview(selected) } }
                         .keyboardShortcut("y", modifiers: .command)

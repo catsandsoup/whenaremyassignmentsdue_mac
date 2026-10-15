@@ -83,6 +83,10 @@ struct FeedbackItem: Codable, Sendable, Identifiable {
         var seen = Set<Int>()
         return comments.flatMap(\.attachments).filter { seen.insert($0.id).inserted }
     }
+    var previewFiles: [FeedbackAttachment] {
+        var seen = Set<Int>()
+        return (attachments + submissionFiles).filter { seen.insert($0.id).inserted }
+    }
     var markLabel: String? {
         guard postedAt != nil else { return nil }
         if let grade, !grade.isEmpty, Double(grade) == nil { return grade }

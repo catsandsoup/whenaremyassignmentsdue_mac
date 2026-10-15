@@ -5,7 +5,7 @@ import QuickLook
 struct FeedbackReader: View {
     let item: FeedbackItem
     @ObservedObject var store: FeedbackStore
-    @State private var previewURL: URL?
+    let preview: ([FeedbackAttachment]) -> Void
     @State private var showingWarning = false
     @State private var copyNotice = ""
     @State private var saveError: String?
@@ -15,7 +15,7 @@ struct FeedbackReader: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 Text(item.course).feedbackFont(.subheadline).foregroundStyle(.secondary).padding(.bottom, 10)
-                Text(item.title).feedbackFont(.largeTitle, weight: .bold).textSelection(.enabled).padding(.bottom, 7)
+                Text(item.title).feedbackFont(.largeTitle, weight: .bold).textSelection(.enabled).accessibilityAddTraits(.isHeader).padding(.bottom, 7)
                 Text(item.markLabel.map { $0 + " · Released Canvas mark" } ?? item.subtitle)
                     .feedbackFont(.title2).foregroundStyle(.secondary)
                 if !item.gradeMatchesCurrent && item.markLabel != nil {
@@ -82,12 +82,11 @@ struct FeedbackReader: View {
             try? await Task.sleep(for: .seconds(2))
             if !Task.isCancelled { copyNotice = "" }
         }
-        .quickLookPreview($previewURL)
-        .onDisappear { previewURL = nil; actionTask?.cancel() }
+        .onDisappear { actionTask?.cancel() }
     }
     private var rule: some View { Divider().padding(.vertical, 26) }
     private func heading(_ text: String, top: CGFloat = 0) -> some View {
-        Text(text).feedbackFont(.headline).padding(.top, top).padding(.bottom, 10)
+        Text(text).feedbackFont(.headline).accessibilityAddTraits(.isHeader).padding(.top, top).padding(.bottom, 10)
     }
     private func fileRow(_ file: FeedbackAttachment) -> some View {
         let key = item.id + ":" + String(file.id)
@@ -114,7 +113,7 @@ struct FeedbackReader: View {
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(.separator.opacity(0.5)))
         .focusable()
         .focused($focusedAttachment, equals: file.id)
-        .onKeyPress(.space) {
+        .onKeyPress(.space, phases: .down) { _ in
             guard focusedAttachment == file.id else { return .ignored }
             guard !isBusy else { return .handled }
             perform(.preview, file: file); return .handled
@@ -142,7 +141,11 @@ struct FeedbackReader: View {
     private func fileButtons(_ file: FeedbackAttachment, isBusy: Bool) -> some View {
         VStack(alignment: .trailing, spacing: 8) {
             HStack {
-                Button(isBusy ? "Downloading…" : (file.isPDF ? "Open PDF" : "Open file")) { perform(.open, file: file) }
+                Button { perform(.open, file: file) } label: {
+                    Text(file.isPDF ? "Open PDF" : "Open file").opacity(isBusy ? 0 : 1)
+                        .overlay { if isBusy { ProgressView().controlSize(.small) } }
+                }
+                    .accessibilityLabel(isBusy ? "Downloading attachment" : (file.isPDF ? "Open PDF" : "Open file"))
                     .buttonStyle(.borderedProminent).disabled(isBusy)
                 Button("Save…") { perform(.save, file: file) }.disabled(isBusy)
             }
@@ -161,12 +164,12 @@ struct FeedbackReader: View {
     }
     private enum FileAction { case open, preview, save }
     private func perform(_ action: FileAction, file: FeedbackAttachment) {
+        if action == .preview { preview([file]); return }
         actionTask?.cancel()
         actionTask = Task {
             if action == .save { await save(file); return }
             guard let url = await store.obtain(file, itemID: item.id), !Task.isCancelled else { return }
-            if action == .preview { previewURL = url }
-            else if !NSWorkspace.shared.open(url) {
+            if !NSWorkspace.shared.open(url) {
                 store.fileErrors[item.id + ":" + String(file.id)] = "No app could open this file. Use Save… to keep a copy and choose an app."
             }
         }

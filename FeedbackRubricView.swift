@@ -7,7 +7,7 @@ struct FeedbackRubricView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Rubric").feedbackFont(.headline)
+                Text("Rubric").feedbackFont(.headline).accessibilityAddTraits(.isHeader)
                 Spacer()
                 if FeedbackExport.hasRubric(item) {
                     Button("Copy Rubric", systemImage: "doc.on.doc") {

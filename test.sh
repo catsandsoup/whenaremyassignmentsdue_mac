@@ -25,3 +25,6 @@ xcrun swiftc "$source_dir/Models.swift" "$source_dir/FeedbackModels.swift" "$sou
 "$source_dir/.build/feedback-export-checks"
 xcrun swiftc "$source_dir/FeedbackPDF.swift" "$source_dir/FeedbackPDFChecks.swift" -o "$source_dir/.build/feedback-pdf-checks"
 "$source_dir/.build/feedback-pdf-checks"
+
+xcrun swiftc "$source_dir/Models.swift" "$source_dir/FeedbackModels.swift" "$source_dir/FeedbackDesignFixture.swift" "$source_dir/FeedbackPreview.swift" "$source_dir/FeedbackPreviewChecks.swift" -o "$source_dir/.build/feedback-preview-checks"
+"$source_dir/.build/feedback-preview-checks"

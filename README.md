@@ -74,3 +74,11 @@ Copy Rubric includes every rating description, even when collapsed. Copy Feedbac
 Cached PDF icons support dragging named document copies; file context menus offer Quick Look, Open, Save, Show in Finder and Share. Managed originals are read-only, while exported copies are editable. Text Size in the toolbar menu supports 100–200%; View → Larger Text, Smaller Text and Actual Size use ⌘+, ⌘− and ⌘0. These preferences affect the reader, leaving the deadline agenda unchanged.
 
 See the [complete student interaction scope](docs/student-experience-scope.md), [native control comparisons](docs/native-interaction-comparison.md) and [1.3 verification and remaining manual checks](docs/native-reader-verification.md). Siri/App Intents, MCP and a broader course-file library remain researched proposals.
+
+### Assessment Quick Look (1.4)
+
+Select an assessment in the results list and press **Space** to preview its feedback attachments and current submission files. **⌘Y** and the toolbar Quick Look button provide the same action. In search, **Return** or **Down Arrow** selects a result and moves into the list; Space remains ordinary typing while editing the query. Cached documents appear immediately, with additional available documents added to the native Quick Look collection. Closing preview or changing assessments cancels pending work.
+
+**Open in Canvas** opens the selected assessment in the default browser for submission and other Canvas actions. Toolbar actions retain their positions when selection clears, download indicators retain the button's dimensions, and reader sections expose accessibility headings. The app includes its own document/calendar icon. Deadline layout and credential behaviour remain unchanged.
+
+See the [1.4 interaction verification and motion review](docs/interaction-verification-1.4.md). VoiceOver testing was explicitly excluded from this release by the user; real receiving-app drag/drop and frame-level animation profiling are not claimed as passing.

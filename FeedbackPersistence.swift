@@ -121,7 +121,7 @@ enum FeedbackMigrationPlan: SchemaMigrationPlan {
         do {
             guard let record = try modelContext.fetch(FetchDescriptor<Record>()).first(where: { $0.key == itemID }) else { throw FeedbackError.invalidData }
             var value = try JSONDecoder().decode(FeedbackItem.self, from: record.payload)
-            guard let current = value.attachments.first(where: { $0.id == file.id }), current.sameRevision(as: expected) else { throw FeedbackError.unavailable("This attachment changed while downloading. Select it again to open the current version.") }
+            guard let current = value.previewFiles.first(where: { $0.id == file.id }), current.sameRevision(as: expected) else { throw FeedbackError.unavailable("This attachment changed while downloading. Select it again to open the current version.") }
             for c in value.comments.indices {
                 for f in value.comments[c].attachments.indices where value.comments[c].attachments[f].id == file.id {
                     value.comments[c].attachments[f].localPath = file.localPath
@@ -130,6 +130,9 @@ enum FeedbackMigrationPlan: SchemaMigrationPlan {
                     value.comments[c].attachments[f].containsRubric = file.containsRubric
                     value.comments[c].attachments[f].containsResult = file.containsResult
                 }
+            }
+            for index in value.submissionFiles.indices where value.submissionFiles[index].id == file.id {
+                value.submissionFiles[index] = file
             }
             record.payload = try JSONEncoder().encode(value)
             try modelContext.save()
@@ -176,6 +179,14 @@ enum FeedbackMigrationPlan: SchemaMigrationPlan {
                     result.comments[c].attachments[f].containsRubric = previous.containsRubric
                     result.comments[c].attachments[f].containsResult = previous.containsResult
                 }
+            }
+        }
+        for index in result.submissionFiles.indices {
+            let new = result.submissionFiles[index]
+            if let previous = old.submissionFiles.first(where: { $0.sameRevision(as: new) }) {
+                result.submissionFiles[index].cachedSize = previous.cachedSize
+                result.submissionFiles[index].localPath = previous.localPath
+                result.submissionFiles[index].contentHash = previous.contentHash
             }
         }
         return result

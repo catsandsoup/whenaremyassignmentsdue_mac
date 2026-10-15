@@ -36,7 +36,7 @@ ASSIGNMENT_DATES_OUTPUT_DIR=/absolute/output/folder ./build.sh
 - Saved rows stay visible across restarts and passing dates until a successful refresh updates the timetable. An expired key only adds a small yellow warning; details and key replacement are available by clicking it.
 - Treats HTTP 401 as an invalid key. Permission failures, throttling, and server failures retain the cache without a login prompt.
 
-The API key lives in the macOS Keychain. The cache lives in `~/Library/Application Support/AssignmentDates/Snapshot.json`. Neither is part of this repository. `Seed.json` is an optional local, ignored startup snapshot; a clean build uses the empty `Seed.example.json`.
+The API key lives in the macOS Keychain. Deadlines, feedback and downloads share one cached read per launch, including a failed read. Keychain UI is disabled in the app. Existing authorised Apple credential-helper access is reused across app rebuilds; background refreshes never repeatedly ask for approval. The cache lives in `~/Library/Application Support/AssignmentDates/Snapshot.json`. Neither is part of this repository. `Seed.json` is an optional local, ignored startup snapshot; a clean build uses the empty `Seed.example.json`.
 
 ## Verification
 
@@ -46,10 +46,23 @@ For a separate inspection window, launch with `--preview`. This does not force a
 
 ## Research and future scope
 
-See [design research](docs/design-research.md) and [Canvas capability scope](docs/canvas-scope.md). Grades, feedback, and downloads are scoped only; they are not implemented.
+See [design research](docs/design-research.md) and [Canvas capability scope](docs/canvas-scope.md). Marks, lecturer feedback, rubrics and feedback PDF access are implemented in a separate native window. Broader course downloads and other Canvas features remain future scope.
 
 ### Menu bar countdown
 
 The menu bar shows the next future deadline, for example **SIEN6007 in 6d**. On the due date it says **due today**. Calendar days use Sydney time; the label updates every minute without requiring Canvas access. After the exact deadline, the label advances to the next future deadline. If none remain, the calendar icon still opens your saved agenda.
 
 Open **gear → Settings…**, **right-click / Control-click the menu bar label → Settings…**, or press **⌘,** to choose course and countdown, countdown only, or icon only, and optionally show the calendar icon. Settings use native SwiftUI controls and persist between launches. Launch at login and API key updates are also in Settings.
+
+
+## Marks & Feedback
+
+Open **gear → Marks & Feedback…**, the menu bar right-click menu, or **⌘⇧M**. A native SwiftUI split view groups assignments by enrolled subject. Selection replaces the reader immediately; search runs locally. The deadline agenda retains its existing layout and data source.
+
+The reader shows released structured marks, lecturer comments, feedback attachments, complete rubric criteria/rating descriptions and assessed criterion feedback when Canvas supplies it. PDF-only results stay in the original document; the app does not turn PDF text into a Canvas grade. Identical attachments on different assignments retain their source identities and display a duplicate-source note.
+
+**Open PDF** uses the default Mac PDF app. **Preview** uses native Quick Look; **Save…** uses the native file panel. Feedback PDFs download automatically after a successful refresh, are validated and saved on this Mac, and remain usable without Canvas access. Other comment attachments download on demand. Files over 100 MB are left available in Canvas.
+
+Feedback uses a versioned, local SwiftData store at `~/Library/Application Support/AssignmentDates/Feedback/Feedback.store`. Ordered criteria/ratings have typed relationships; original API payloads remain local for lossless decoding. PDFs live in the adjacent `Files` directory with content hashes. Failed updates retain the last committed marks, comments, rubric and file copies. No automatic login screen replaces saved content. Old course records remain on disk; the default view follows the most recently confirmed academic enrolments.
+
+See the [interaction requirements](docs/marks-feedback-interactions.md) and [verification report](docs/marks-feedback-verification.md). Tests include synthetic data only; real cache data, PDFs and credentials are excluded from this repository.

@@ -66,6 +66,8 @@ final class MenuBarController: NSObject {
         if NSApp.currentEvent?.type == .rightMouseUp || NSApp.currentEvent?.modifierFlags.contains(.control) == true {
             popover.performClose(nil)
             let menu = NSMenu()
+            let marks = menu.addItem(withTitle: "Marks & Feedback…", action: #selector(feedbackClicked), keyEquivalent: "")
+            marks.target = self
             let settings = menu.addItem(withTitle: "Settings…", action: #selector(settingsClicked), keyEquivalent: ",")
             settings.target = self
             let refresh = menu.addItem(withTitle: "Refresh", action: #selector(refreshClicked), keyEquivalent: "")
@@ -86,6 +88,12 @@ final class MenuBarController: NSObject {
         NSApp.activate(ignoringOtherApps: true)
         settingsScene.environment.openSettings()
     }
+    func showFeedback() {
+        popover.performClose(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        settingsScene.environment.openWindow(id: "marks-feedback")
+    }
+    @objc private func feedbackClicked() { showFeedback() }
     @objc private func settingsClicked() { showSettings() }
     @objc private func refreshClicked() { store.refresh() }
     @objc private func quitClicked() { NSApp.terminate(nil) }

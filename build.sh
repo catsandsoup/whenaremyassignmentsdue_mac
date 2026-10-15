@@ -7,8 +7,8 @@ mkdir -p "$output_dir"
 deliverable="$output_dir/Assignment Dates.app"
 mkdir -p "$app_dir/Contents/MacOS" "$app_dir/Contents/Resources"
 xcrun swiftc -parse-as-library -O -target arm64-apple-macos27.0 \
-  "$source_dir/Models.swift" "$source_dir/APIClient.swift" "$source_dir/TokenStore.swift" "$source_dir/CanvasStore.swift" "$source_dir/MenuBarController.swift" "$source_dir/MenuBarSettings.swift" "$source_dir/AssignmentDates.swift" -o "$app_dir/Contents/MacOS/AssignmentDates" \
-  -framework SwiftUI -framework AppKit -framework Security -framework ServiceManagement
+  "$source_dir/Models.swift" "$source_dir/APIClient.swift" "$source_dir/TokenStore.swift" "$source_dir/CanvasStore.swift" "$source_dir/MenuBarController.swift" "$source_dir/MenuBarSettings.swift" "$source_dir/FeedbackAPI.swift" "$source_dir/FeedbackFiles.swift" "$source_dir/FeedbackPersistence.swift" "$source_dir/FeedbackModels.swift" "$source_dir/FeedbackStore.swift" "$source_dir/FeedbackDesignFixture.swift" "$source_dir/FeedbackView.swift" "$source_dir/FeedbackReader.swift" "$source_dir/AssignmentDates.swift" -o "$app_dir/Contents/MacOS/AssignmentDates" \
+  -framework SwiftUI -framework SwiftData -framework PDFKit -framework QuickLook -framework AppKit -framework Security -framework LocalAuthentication -framework ServiceManagement
 seed_file="$source_dir/Seed.example.json"
 if [[ -f "$source_dir/Seed.json" ]]; then seed_file="$source_dir/Seed.json"; fi
 cp "$seed_file" "$app_dir/Contents/Resources/Seed.json"
@@ -22,7 +22,7 @@ cat > "$app_dir/Contents/Info.plist" <<'PLIST'
 <key>CFBundleExecutable</key><string>AssignmentDates</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleVersion</key><string>1</string>
-<key>CFBundleShortVersionString</key><string>1.1</string>
+<key>CFBundleShortVersionString</key><string>1.2</string>
 <key>LSMinimumSystemVersion</key><string>27.0</string>
 <key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>

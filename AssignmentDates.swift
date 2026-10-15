@@ -94,6 +94,7 @@ struct DeadlinesView: View {
                 Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }
                     .help("Refresh").accessibilityLabel("Refresh").disabled(store.syncing)
                 Menu {
+                    Button("Marks & Feedback…") { MenuBarAppDelegate.controller?.showFeedback() }
                     Button("Settings…") { MenuBarAppDelegate.controller?.showSettings() }.keyboardShortcut(",")
                     Divider()
                     Button("Quit Assignment Dates") { NSApp.terminate(nil) }
@@ -124,6 +125,7 @@ struct DeadlinesView: View {
 struct AssignmentDatesApp: App {
     @NSApplicationDelegateAdaptor(MenuBarAppDelegate.self) private var appDelegate
     @StateObject private var store: CanvasStore
+    @StateObject private var feedback: FeedbackStore
     init() {
         if CommandLine.arguments.contains("--store-api-key") {
             do {
@@ -134,8 +136,15 @@ struct AssignmentDatesApp: App {
                 exit(0)
             } catch { print(error.localizedDescription); exit(1) }
         }
+        let arguments = CommandLine.arguments
+        let design = arguments.contains("--marks-design-preview")
+        let offline = arguments.contains("--feedback-offline")
+        let dataDirectory = arguments.firstIndex(of: "--feedback-data-dir").flatMap { index in
+            arguments.indices.contains(index + 1) ? URL(fileURLWithPath: arguments[index + 1], isDirectory: true) : nil
+        }
+        _feedback = StateObject(wrappedValue: FeedbackStore(designMode: design, directory: dataDirectory, automaticallyRefresh: !design && !offline))
         let previewExpiredKey = CommandLine.arguments.contains("--preview-expired-key")
-        let initial = CanvasStore(automaticallyRefresh: !previewExpiredKey)
+        let initial = CanvasStore(automaticallyRefresh: !previewExpiredKey && !design && !offline)
         if previewExpiredKey {
             initial.needsKey = true
             initial.errorMessage = "Updates paused: API key expired or invalid. Your saved timetable is unchanged."
@@ -144,10 +153,19 @@ struct AssignmentDatesApp: App {
         MenuBarAppDelegate.store = initial
     }
     var body: some Scene {
+        Window("Marks & Feedback", id: "marks-feedback") {
+            FeedbackWindowView(store: feedback)
+                .preferredColorScheme(CommandLine.arguments.contains("--appearance-dark") ? .dark : CommandLine.arguments.contains("--appearance-light") ? .light : nil)
+        }
+        .defaultSize(width: 1100, height: 760)
+        .defaultLaunchBehavior(CommandLine.arguments.contains("--marks-design-preview") || CommandLine.arguments.contains("--marks") ? .presented : .suppressed)
         Window("Assignment Due Dates", id: "preview") { DeadlinesView(store: store) }
             .commands {
                 CommandGroup(replacing: .appSettings) {
                     Button("Settings…") { MenuBarAppDelegate.controller?.showSettings() }.keyboardShortcut(",")
+                }
+                CommandGroup(after: .appSettings) {
+                    Button("Marks & Feedback…") { MenuBarAppDelegate.controller?.showFeedback() }.keyboardShortcut("m", modifiers: [.command, .shift])
                 }
             }
             .windowResizability(.contentSize)

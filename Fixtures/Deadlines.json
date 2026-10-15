@@ -1,0 +1,145 @@
+{
+  "checkedAt": "2026-10-15T01:00:00Z",
+  "courses": [
+    {
+      "id": 1,
+      "name": "Synthetic SIEN6007",
+      "course_code": "SIEN6007",
+      "assignments": [
+        {
+          "id": 101,
+          "name": "Presentation 4",
+          "due_at": "2026-10-21T07:00:00Z",
+          "published": true,
+          "html_url": "https://canvas.sydney.edu.au/courses/1/assignments/101"
+        },
+        {
+          "id": 102,
+          "name": "Peer review",
+          "due_at": "2026-10-30T12:59:00Z",
+          "published": true,
+          "html_url": "https://canvas.sydney.edu.au/courses/1/assignments/102"
+        },
+        {
+          "id": 103,
+          "name": "Startup pitch",
+          "due_at": "2026-11-04T07:00:00Z",
+          "published": true,
+          "html_url": "https://canvas.sydney.edu.au/courses/1/assignments/103"
+        },
+        {
+          "id": 104,
+          "name": "Decision report",
+          "due_at": "2026-11-06T12:59:00Z",
+          "published": true,
+          "html_url": "https://canvas.sydney.edu.au/courses/1/assignments/104"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Synthetic FINC6001",
+      "course_code": "FINC6001",
+      "assignments": [
+        {
+          "id": 201,
+          "name": "Report",
+          "due_at": "2026-10-23T12:59:59Z",
+          "published": true,
+          "html_url": "https://canvas.sydney.edu.au/courses/2/assignments/201"
+        },
+        {
+          "id": 202,
+          "name": "Video",
+          "due_at": "2026-10-23T12:59:59Z",
+          "published": true,
+          "html_url": "https://canvas.sydney.edu.au/courses/2/assignments/202"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Synthetic IBUS6020",
+      "course_code": "IBUS6020",
+      "assignments": [
+        {
+          "id": 301,
+          "name": "Feedback task",
+          "due_at": "2026-10-25T12:59:59Z",
+          "published": true,
+          "html_url": "https://canvas.sydney.edu.au/courses/3/assignments/301"
+        },
+        {
+          "id": 302,
+          "name": "Reflection",
+          "due_at": "2026-11-01T12:59:59Z",
+          "published": true,
+          "html_url": "https://canvas.sydney.edu.au/courses/3/assignments/302"
+        },
+        {
+          "id": 303,
+          "name": "Worksheet",
+          "due_at": "2026-11-08T12:59:59Z",
+          "published": true,
+          "html_url": "https://canvas.sydney.edu.au/courses/3/assignments/303"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Synthetic FINC6017",
+      "course_code": "FINC6017",
+      "assignments": [
+        {
+          "id": 401,
+          "name": "Group submission 1",
+          "due_at": "2026-11-06T12:59:59Z",
+          "published": true,
+          "html_url": "https://canvas.sydney.edu.au/courses/4/assignments/401"
+        },
+        {
+          "id": 402,
+          "name": "Group submission 2",
+          "due_at": "2026-11-06T12:59:59Z",
+          "published": true,
+          "html_url": "https://canvas.sydney.edu.au/courses/4/assignments/402"
+        },
+        {
+          "id": 403,
+          "name": "Group submission 3",
+          "due_at": "2026-11-06T12:59:59Z",
+          "published": true,
+          "html_url": "https://canvas.sydney.edu.au/courses/4/assignments/403"
+        },
+        {
+          "id": 404,
+          "name": "Group submission 4",
+          "due_at": "2026-11-06T12:59:59Z",
+          "published": true,
+          "html_url": "https://canvas.sydney.edu.au/courses/4/assignments/404"
+        },
+        {
+          "id": 405,
+          "name": "Group submission 5",
+          "due_at": "2026-11-06T12:59:59Z",
+          "published": true,
+          "html_url": "https://canvas.sydney.edu.au/courses/4/assignments/405"
+        },
+        {
+          "id": 406,
+          "name": "Group submission 6",
+          "due_at": "2026-11-06T12:59:59Z",
+          "published": true,
+          "html_url": "https://canvas.sydney.edu.au/courses/4/assignments/406"
+        },
+        {
+          "id": 407,
+          "name": "Group submission 7",
+          "due_at": "2026-11-06T12:59:59Z",
+          "published": true,
+          "html_url": "https://canvas.sydney.edu.au/courses/4/assignments/407"
+        }
+      ]
+    }
+  ]
+}

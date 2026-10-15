@@ -1,0 +1,36 @@
+#!/bin/zsh
+set -euo pipefail
+source_dir="${0:A:h}"
+app_dir="$source_dir/.build/AssignmentDates.stage"
+output_dir="${ASSIGNMENT_DATES_OUTPUT_DIR:-$source_dir/dist}"
+mkdir -p "$output_dir"
+deliverable="$output_dir/Assignment Dates.app"
+mkdir -p "$app_dir/Contents/MacOS" "$app_dir/Contents/Resources"
+xcrun swiftc -parse-as-library -O -target arm64-apple-macos27.0 \
+  "$source_dir/Models.swift" "$source_dir/APIClient.swift" "$source_dir/TokenStore.swift" "$source_dir/AssignmentDates.swift" -o "$app_dir/Contents/MacOS/AssignmentDates" \
+  -framework SwiftUI -framework AppKit -framework Security -framework ServiceManagement
+seed_file="$source_dir/Seed.example.json"
+if [[ -f "$source_dir/Seed.json" ]]; then seed_file="$source_dir/Seed.json"; fi
+cp "$seed_file" "$app_dir/Contents/Resources/Seed.json"
+cat > "$app_dir/Contents/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleIdentifier</key><string>au.monty.assignmentdates</string>
+<key>CFBundleName</key><string>Assignment Dates</string>
+<key>CFBundleDisplayName</key><string>Assignment Dates</string>
+<key>CFBundleExecutable</key><string>AssignmentDates</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleVersion</key><string>1</string>
+<key>CFBundleShortVersionString</key><string>1.1</string>
+<key>LSMinimumSystemVersion</key><string>27.0</string>
+<key>LSUIElement</key><true/>
+<key>NSHighResolutionCapable</key><true/>
+</dict></plist>
+PLIST
+xattr -cr "$app_dir"
+codesign --force --sign - "$app_dir"
+codesign --verify --deep --strict "$app_dir"
+ditto --norsrc --noextattr "$app_dir" "$deliverable"
+ditto -c -k --norsrc --noextattr --keepParent "$deliverable" "$output_dir/Assignment Dates.zip"
+printf 'Built %s\n' "$deliverable"

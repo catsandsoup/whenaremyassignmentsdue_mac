@@ -1,0 +1,8 @@
+.DS_Store
+.build/
+dist/
+Seed.json
+*.app/
+*.zip
+.env
+*.log

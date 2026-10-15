@@ -7,7 +7,7 @@ mkdir -p "$output_dir"
 deliverable="$output_dir/Assignment Dates.app"
 mkdir -p "$app_dir/Contents/MacOS" "$app_dir/Contents/Resources"
 xcrun swiftc -parse-as-library -O -target arm64-apple-macos27.0 \
-  "$source_dir/Models.swift" "$source_dir/APIClient.swift" "$source_dir/TokenStore.swift" "$source_dir/AssignmentDates.swift" -o "$app_dir/Contents/MacOS/AssignmentDates" \
+  "$source_dir/Models.swift" "$source_dir/APIClient.swift" "$source_dir/TokenStore.swift" "$source_dir/CanvasStore.swift" "$source_dir/AssignmentDates.swift" -o "$app_dir/Contents/MacOS/AssignmentDates" \
   -framework SwiftUI -framework AppKit -framework Security -framework ServiceManagement
 seed_file="$source_dir/Seed.example.json"
 if [[ -f "$source_dir/Seed.json" ]]; then seed_file="$source_dir/Seed.json"; fi

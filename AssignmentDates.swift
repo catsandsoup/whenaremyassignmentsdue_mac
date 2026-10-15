@@ -3,88 +3,6 @@ import AppKit
 import ServiceManagement
 import Darwin
 
-@MainActor
-final class CanvasStore: ObservableObject {
-    @Published var snapshot: CanvasSnapshot?
-    @Published var syncing = false
-    @Published var needsKey = false
-    @Published var errorMessage: String?
-    private var timer: Timer?
-    private var wakeObserver: NSObjectProtocol?
-    private var lastAttempt = Date.distantPast
-    private let cacheURL: URL
-    private let client = CanvasAPIClient()
-
-    init() {
-        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        cacheURL = support.appendingPathComponent("AssignmentDates/Snapshot.json")
-        for url in [cacheURL, Bundle.main.url(forResource: "Seed", withExtension: "json")].compactMap({ $0 }) {
-            if let data = try? Data(contentsOf: url), let saved = try? JSONDecoder().decode(CanvasSnapshot.self, from: data) {
-                snapshot = saved
-                break
-            }
-        }
-        timer = Timer.scheduledTimer(withTimeInterval: 1800, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.refresh() }
-        }
-        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification,
-            object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.refresh() }
-        }
-        refresh()
-    }
-
-    func refreshIfNeeded() {
-        if Date().timeIntervalSince(lastAttempt) > 300 { refresh() }
-    }
-
-    func refresh() {
-        guard !syncing else { return }
-        lastAttempt = Date()
-        guard let key = TokenStore.read(), !key.isEmpty else {
-            needsKey = true
-            errorMessage = "Add a Canvas API key to update automatically."
-            return
-        }
-        syncing = true
-        Task {
-            defer { syncing = false }
-            do {
-                let updated = try await client.fetchSnapshot(token: key)
-                let data = try JSONEncoder().encode(updated)
-                try FileManager.default.createDirectory(at: cacheURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-                try data.write(to: cacheURL, options: .atomic)
-                snapshot = updated
-                needsKey = false
-                errorMessage = nil
-            } catch CanvasAPIError.invalidKey {
-                needsKey = true
-                errorMessage = "API key expired or invalid. Saved deadlines are available."
-            } catch {
-                // Network failures, throttling, and denied course access never trigger login.
-                errorMessage = "Couldn't update. Showing saved deadlines."
-            }
-        }
-    }
-
-    func updateAPIKey() {
-        let alert = NSAlert()
-        alert.messageText = "Canvas API key"
-        alert.informativeText = "Paste your Canvas API key. The app uses it to refresh automatically."
-        let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 340, height: 24))
-        field.placeholderString = "Canvas API key"
-        alert.accessoryView = field
-        alert.addButton(withTitle: "Save and refresh")
-        alert.addButton(withTitle: "Cancel")
-        NSApp.activate(ignoringOtherApps: true)
-        alert.window.initialFirstResponder = field
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        do { try TokenStore.save(field.stringValue); refresh() }
-        catch { errorMessage = error.localizedDescription }
-        field.stringValue = ""
-    }
-}
-
 struct AgendaAssignment: View {
     let row: DeadlineRow
     var title: String {
@@ -134,8 +52,9 @@ struct AgendaAssignment: View {
 struct DeadlinesView: View {
     @ObservedObject var store: CanvasStore
     @State private var loginError: String?
+    @State private var showingUpdateWarning = false
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
-    var days: [AgendaDay] { AgendaDay.grouped(Deadlines.rows(store.snapshot)) }
+    var days: [AgendaDay] { AgendaDay.grouped(store.displayedRows) }
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -151,14 +70,29 @@ struct DeadlinesView: View {
             if days.isEmpty { Text("No upcoming dated assignments.") }
             Divider()
             HStack {
-                if let error = store.errorMessage {
-                    Text(error).font(.caption)
-                } else if let checked = store.snapshot.flatMap({ Deadlines.date($0.checkedAt) }) {
+                if let checked = store.snapshot.flatMap({ Deadlines.date($0.checkedAt) }) {
                     Text("Sydney time · Updated " + Deadlines.timeLabel(checked)).font(.caption)
-                        .help("Auto-refreshes every 30 minutes, on wake, and when reopened after 5 minutes.")
+                        .help("Last successful download: " + Deadlines.label(checked) + ". Saved dates remain available even when updates are unavailable.")
                 }
                 Spacer()
-                if store.needsKey { Button("Replace API key") { store.updateAPIKey() } }
+                if let error = store.errorMessage {
+                    Button { showingUpdateWarning.toggle() } label: {
+                        Image(systemName: "exclamationmark.triangle.fill").symbolRenderingMode(.multicolor)
+                    }
+                    .buttonStyle(.plain)
+                    .help(error)
+                    .accessibilityLabel("Updates unavailable. Your saved timetable is unchanged.")
+                    .popover(isPresented: $showingUpdateWarning) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Updates paused").font(.headline)
+                            Text(error)
+                            if store.needsKey {
+                                Button("Update API key…") { showingUpdateWarning = false; store.updateAPIKey() }
+                            }
+                            Button("Retry update") { showingUpdateWarning = false; store.refresh() }.disabled(store.syncing)
+                        }.padding().frame(width: 300)
+                    }
+                }
                 Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }
                     .help("Refresh").accessibilityLabel("Refresh").disabled(store.syncing)
                 Menu {
@@ -202,7 +136,7 @@ struct DeadlinesView: View {
 
 @main
 struct AssignmentDatesApp: App {
-    @StateObject private var store = CanvasStore()
+    @StateObject private var store: CanvasStore
     init() {
         if CommandLine.arguments.contains("--store-api-key") {
             do {
@@ -213,6 +147,13 @@ struct AssignmentDatesApp: App {
                 exit(0)
             } catch { print(error.localizedDescription); exit(1) }
         }
+        let previewExpiredKey = CommandLine.arguments.contains("--preview-expired-key")
+        let initial = CanvasStore(automaticallyRefresh: !previewExpiredKey)
+        if previewExpiredKey {
+            initial.needsKey = true
+            initial.errorMessage = "Updates paused: API key expired or invalid. Your saved timetable is unchanged."
+        }
+        _store = StateObject(wrappedValue: initial)
     }
     var body: some Scene {
         MenuBarExtra("Assignment Due Dates", systemImage: "calendar.badge.clock") {

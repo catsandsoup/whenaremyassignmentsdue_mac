@@ -33,6 +33,7 @@ ASSIGNMENT_DATES_OUTPUT_DIR=/absolute/output/folder ./build.sh
 - Groups assignments sharing a due minute, then groups the agenda by Sydney calendar day.
 - Uses Sydney time, including daylight saving.
 - Retains the last successful snapshot when Canvas or the network is unavailable.
+- Saved rows stay visible across restarts and passing dates until a successful refresh updates the timetable. An expired key only adds a small yellow warning; details and key replacement are available by clicking it.
 - Treats HTTP 401 as an invalid key. Permission failures, throttling, and server failures retain the cache without a login prompt.
 
 The API key lives in the macOS Keychain. The cache lives in `~/Library/Application Support/AssignmentDates/Snapshot.json`. Neither is part of this repository. `Seed.json` is an optional local, ignored startup snapshot; a clean build uses the empty `Seed.example.json`.

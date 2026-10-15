@@ -47,3 +47,9 @@ For a separate inspection window, launch with `--preview`. This does not force a
 ## Research and future scope
 
 See [design research](docs/design-research.md) and [Canvas capability scope](docs/canvas-scope.md). Grades, feedback, and downloads are scoped only; they are not implemented.
+
+### Menu bar countdown
+
+The menu bar shows the next future deadline, for example **SIEN6007 in 6d**. On the due date it says **due today**. Calendar days use Sydney time; the label updates every minute without requiring Canvas access. After the exact deadline, the label advances to the next future deadline. If none remain, the calendar icon still opens your saved agenda.
+
+Open **gear → Settings…**, **right-click / Control-click the menu bar label → Settings…**, or press **⌘,** to choose course and countdown, countdown only, or icon only, and optionally show the calendar icon. Settings use native SwiftUI controls and persist between launches. Launch at login and API key updates are also in Settings.

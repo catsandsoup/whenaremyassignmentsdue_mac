@@ -131,3 +131,15 @@ struct AgendaDay: Identifiable {
             .sorted { $0.date < $1.date }
     }
 }
+
+// Uses calendar days in Sydney, independent of the Mac's time zone and network availability.
+enum MenuBarDeadline {
+    static func text(rows: [DeadlineRow], now: Date, countdownOnly: Bool = false) -> String? {
+        guard let next = rows.filter({ $0.due >= now }).min(by: {
+            $0.due == $1.due ? $0.course < $1.course : $0.due < $1.due
+        }) else { return nil }
+        let days = Deadlines.daysUntil(next.due, now: now)
+        let countdown = days == 0 ? "due today" : "in \(days)d"
+        return countdownOnly ? (days == 0 ? "Due today" : "In \(days)d") : next.course + " " + countdown
+    }
+}

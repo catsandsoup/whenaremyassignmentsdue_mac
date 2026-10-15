@@ -51,9 +51,7 @@ struct AgendaAssignment: View {
 
 struct DeadlinesView: View {
     @ObservedObject var store: CanvasStore
-    @State private var loginError: String?
     @State private var showingUpdateWarning = false
-    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     var days: [AgendaDay] { AgendaDay.grouped(store.displayedRows) }
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -96,24 +94,12 @@ struct DeadlinesView: View {
                 Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }
                     .help("Refresh").accessibilityLabel("Refresh").disabled(store.syncing)
                 Menu {
-                    Toggle("Launch at login", isOn: $launchAtLogin)
-                        .onChange(of: launchAtLogin) { _, enabled in
-                            do {
-                                if enabled { try SMAppService.mainApp.register() }
-                                else { try SMAppService.mainApp.unregister() }
-                                loginError = nil
-                            } catch {
-                                loginError = error.localizedDescription
-                                launchAtLogin = SMAppService.mainApp.status == .enabled
-                            }
-                        }
-                    Button("Update API key…") { store.updateAPIKey() }
+                    Button("Settings…") { MenuBarAppDelegate.controller?.showSettings() }.keyboardShortcut(",")
                     Divider()
                     Button("Quit Assignment Dates") { NSApp.terminate(nil) }
                 } label: { Image(systemName: "gearshape") }
                 .menuStyle(.borderlessButton).fixedSize().help("Settings")
             }
-            if let loginError { Text(loginError).font(.caption) }
         }
         .font(.body)
         .padding()
@@ -136,6 +122,7 @@ struct DeadlinesView: View {
 
 @main
 struct AssignmentDatesApp: App {
+    @NSApplicationDelegateAdaptor(MenuBarAppDelegate.self) private var appDelegate
     @StateObject private var store: CanvasStore
     init() {
         if CommandLine.arguments.contains("--store-api-key") {
@@ -154,12 +141,15 @@ struct AssignmentDatesApp: App {
             initial.errorMessage = "Updates paused: API key expired or invalid. Your saved timetable is unchanged."
         }
         _store = StateObject(wrappedValue: initial)
+        MenuBarAppDelegate.store = initial
     }
     var body: some Scene {
-        MenuBarExtra("Assignment Due Dates", systemImage: "calendar.badge.clock") {
-            DeadlinesView(store: store)
-        }.menuBarExtraStyle(.window)
         Window("Assignment Due Dates", id: "preview") { DeadlinesView(store: store) }
+            .commands {
+                CommandGroup(replacing: .appSettings) {
+                    Button("Settings…") { MenuBarAppDelegate.controller?.showSettings() }.keyboardShortcut(",")
+                }
+            }
             .windowResizability(.contentSize)
             .defaultLaunchBehavior(CommandLine.arguments.contains("--preview") ? .presented : .suppressed)
     }

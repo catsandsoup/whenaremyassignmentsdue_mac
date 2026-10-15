@@ -24,6 +24,15 @@ struct ModelChecks {
         precondition(Deadlines.rows(augmented, now: now).count == 9, "Admin hub must be excluded")
         let afterSemester = Deadlines.date("2026-12-21T01:00:00Z")!
         precondition(Deadlines.rows(snapshot, now: afterSemester).isEmpty, "Past deadlines must age out")
+        precondition(MenuBarDeadline.text(rows: rows, now: now) == "SIEN6007 in 6d")
+        precondition(MenuBarDeadline.text(rows: rows, now: now, countdownOnly: true) == "In 6d")
+        let dueDay = Deadlines.date("2026-10-21T00:00:00Z")!
+        precondition(MenuBarDeadline.text(rows: rows, now: dueDay) == "SIEN6007 due today")
+        let justAfter = rows.first!.due.addingTimeInterval(1)
+        precondition(MenuBarDeadline.text(rows: rows, now: justAfter) == "FINC6001 in 2d", "Advance after exact deadline")
+        precondition(MenuBarDeadline.text(rows: rows, now: afterSemester) == nil, "No negative countdowns")
+        precondition(MenuBarDeadline.text(rows: [], now: now) == nil)
+        print("PASS: next-deadline menu label, calendar days, due today, automatic progression and no future deadlines")
         print("PASS: 9 deadlines, 16 links, 7 group submissions, AEST/AEDT, admin exclusion, and past-deadline filtering")
     }
 }

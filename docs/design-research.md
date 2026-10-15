@@ -42,3 +42,11 @@ For this app, that means predictable chronological ordering, exact dates and tim
 ## Verification limits
 
 Native screenshots establish visible layout and rendering only. They do not establish a measured reduction in the user’s stress, universal usability, or full accessibility compliance. The user’s feedback remains the deciding evidence for whether this presentation is easier to read.
+
+## Menu bar countdown and settings
+
+MeetingBar's current [README](https://github.com/leits/MeetingBar#see-what-is-next) documents configurable title, countdown and icon presentation. We adopt the compact next-item pattern without copying its implementation. Default: `SIEN6007 in 6d`; alternatives: countdown only or icon only, with an optional calendar symbol. No custom menu bar font, colour, or background.
+
+Context7's Apple SwiftUI documentation recommends a native `Settings` scene, persisted `AppStorage` bindings, and `MenuBarExtra`. To support explicit right-click and Control-click actions, this app uses an AppKit `NSStatusItem` with a SwiftUI agenda popover. Settings are registered using Apple’s `NSHostingSceneRepresentation` and opened through its `openSettings` environment action after activating the app. Both the gear menu and status-item context menu use this same presenter. The settings window uses a grouped SwiftUI Form with standard picker, toggles and button controls. [Apple HIG Settings](https://developer.apple.com/design/human-interface-guidelines/settings) recommends limiting options and keeping their layout stable.
+
+Countdowns use Sydney calendar days, say “due today” on the date, and advance only after the exact due time. A minute timer keeps the label current without API access. The full cached agenda remains intact; the label selects only future deadlines. With none remaining, the calendar icon remains available to open the saved agenda. Tests cover day boundaries, due-day wording, progression and empty/past data.

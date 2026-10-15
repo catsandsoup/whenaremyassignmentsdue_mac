@@ -2,6 +2,8 @@ import SwiftUI
 
 struct FeedbackWindowView: View {
     @ObservedObject var store: FeedbackStore
+    @AppStorage("feedbackReadingSize") private var readingStep = 0
+    @State private var copyNotice = ""
     @AppStorage("feedbackSelection") private var savedSelection = ""
     @State private var state = FeedbackSelection()
     @FocusState private var searchFocused: Bool
@@ -28,33 +30,33 @@ struct FeedbackWindowView: View {
                 .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 10)
                 List(selection: Binding(get: { state.selectionID }, set: { state.select($0, in: store.items) })) {
                     ForEach(FeedbackFormat.groups(filtered), id: \.0) { course, items in
-                        Section {
-                            if !state.collapsedCourses.contains(course) {
-                                ForEach(items) { item in
-                                    FeedbackSidebarRow(item: item).tag(item.id)
-                                }
-                            }
-                        } header: {
-                            Button {
-                                if state.collapsedCourses.contains(course) { state.collapsedCourses.remove(course) }
+                        Section(isExpanded: Binding(
+                            get: { !state.collapsedCourses.contains(course) },
+                            set: { expanded in
+                                if expanded { state.collapsedCourses.remove(course) }
                                 else { state.collapsedCourses.insert(course) }
                                 state.reconcile(in: store.items)
-                            } label: {
-                                HStack(spacing: 7) {
-                                    Image(systemName: state.collapsedCourses.contains(course) ? "chevron.right" : "chevron.down")
-                                        .font(.caption2.weight(.semibold))
-                                    Text(course).font(.subheadline.weight(.semibold))
-                                }.foregroundStyle(.secondary)
-                            }.buttonStyle(.plain)
-                            .accessibilityLabel(course + (state.collapsedCourses.contains(course) ? ", collapsed" : ", expanded"))
+                            }
+                        )) {
+                            ForEach(items) { item in
+                                FeedbackSidebarRow(item: item).tag(item.id)
+                            }
+                        } header: {
+                            Text(course).feedbackFont(.subheadline, weight: .semibold)
                         }
                     }
                 }
                 .listStyle(.sidebar)
                 .focused($listFocused)
-                .simultaneousGesture(TapGesture().onEnded { listFocused = true })
+                .copyable(selected.map { [FeedbackExport.feedback($0)] } ?? [])
+                .contextMenu(forSelectionType: String.self) { ids in
+                    if let item = store.items.first(where: { ids.contains($0.id) }) {
+                        FeedbackCopyActions(item: item) { copyNotice = $0 }
+                    }
+                }
                 .overlay { if filtered.isEmpty { Text("No matching assignments").foregroundStyle(.secondary) } }
             }
+            .feedbackFont(.body)
             .navigationSplitViewColumnWidth(min: 270, ideal: 340, max: 440)
         } detail: {
             Group {
@@ -64,7 +66,7 @@ struct FeedbackWindowView: View {
                     VStack(spacing: 12) {
                     ContentUnavailableView(state.search.isEmpty ? "Select an assignment" : "No assignment selected", systemImage: "doc.text", description: Text(state.search.isEmpty ? "Choose an assignment to read its results, feedback and rubric." : "Choose a matching assignment from the sidebar."))
                     if let error = store.errorMessage {
-                        Label(error, systemImage: "exclamationmark.triangle").font(.subheadline).foregroundStyle(.secondary).padding().frame(maxWidth: 460)
+                        Label(error, systemImage: "exclamationmark.triangle").feedbackFont(.subheadline).foregroundStyle(.secondary).padding().frame(maxWidth: 460)
                     }
                     }
                 }
@@ -74,6 +76,18 @@ struct FeedbackWindowView: View {
             .navigationTitle("Marks & Feedback")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        if let selected { FeedbackCopyActions(item: selected) { copyNotice = $0 } }
+                        Divider()
+                        Picker("Text Size", selection: $readingStep) {
+                            ForEach(0...FeedbackReadingSize.maximum, id: \.self) { step in
+                                Text("\(100 + step * 10)%").tag(step)
+                            }
+                        }
+                    } label: { Image(systemName: "ellipsis.circle") }
+                    .help("Copy and reading options").accessibilityLabel("Copy and reading options")
+                }
+                ToolbarItem(placement: .primaryAction) {
                     Button { store.refresh() } label: {
                         if store.syncing { ProgressView().controlSize(.small) }
                         else { Image(systemName: "arrow.clockwise") }
@@ -82,7 +96,16 @@ struct FeedbackWindowView: View {
                 }
             }
         }
+        .environment(\.feedbackReadingStep, FeedbackReadingSize.clamped(readingStep))
         .frame(minWidth: 850, minHeight: 570)
+        .overlay(alignment: .bottomTrailing) {
+            if !copyNotice.isEmpty { Text(copyNotice).font(.callout).padding(8).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8)).padding().accessibilityLabel(copyNotice) }
+        }
+        .task(id: copyNotice) {
+            guard !copyNotice.isEmpty else { return }
+            try? await Task.sleep(for: .seconds(2))
+            if !Task.isCancelled { copyNotice = "" }
+        }
         .onAppear {
             if state.selectionID == nil {
                 let id = store.designMode ? store.items.first?.id : store.items.first { $0.id == savedSelection }?.id
@@ -113,14 +136,15 @@ private struct FeedbackSidebarRow: View {
     let item: FeedbackItem
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: "doc").font(.title2).foregroundStyle(.secondary).frame(width: 24)
+            Image(systemName: "doc").feedbackFont(.title2).foregroundStyle(.secondary).frame(width: 24)
             VStack(alignment: .leading, spacing: 3) {
-                Text(item.title).font(.body).lineLimit(2)
-                Text(item.subtitle).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                Text(item.title).feedbackFont(.body).lineLimit(2)
+                Text(item.subtitle).feedbackFont(.subheadline).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 0)
-            if let mark = item.markLabel { Text(mark).font(.body.weight(.semibold)) }
+            if let mark = item.markLabel { Text(mark).feedbackFont(.body, weight: .semibold) }
         }
+        .help(item.originalTitle)
         .padding(.vertical, 9)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(item.course + ", " + item.title + ", " + (item.markLabel ?? item.subtitle))

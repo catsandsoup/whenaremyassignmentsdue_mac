@@ -157,6 +157,7 @@ struct AssignmentDatesApp: App {
             FeedbackWindowView(store: feedback)
                 .preferredColorScheme(CommandLine.arguments.contains("--appearance-dark") ? .dark : CommandLine.arguments.contains("--appearance-light") ? .light : nil)
         }
+        .commands { FeedbackReadingCommands() }
         .defaultSize(width: 1100, height: 760)
         .defaultLaunchBehavior(CommandLine.arguments.contains("--marks-design-preview") || CommandLine.arguments.contains("--marks") ? .presented : .suppressed)
         Window("Assignment Due Dates", id: "preview") { DeadlinesView(store: store) }

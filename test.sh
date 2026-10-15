@@ -21,3 +21,7 @@ xcrun swiftc "$source_dir/Models.swift" "$source_dir/APIClient.swift" "$source_d
 "$source_dir/.build/feedback-store-checks"
 xcrun swiftc "$source_dir/TokenStore.swift" "$source_dir/TokenStoreChecks.swift" -o "$source_dir/.build/token-store-checks" -framework Security -framework LocalAuthentication
 "$source_dir/.build/token-store-checks"
+xcrun swiftc "$source_dir/Models.swift" "$source_dir/FeedbackModels.swift" "$source_dir/FeedbackDesignFixture.swift" "$source_dir/FeedbackExport.swift" "$source_dir/FeedbackExportChecks.swift" -o "$source_dir/.build/feedback-export-checks"
+"$source_dir/.build/feedback-export-checks"
+xcrun swiftc "$source_dir/FeedbackPDF.swift" "$source_dir/FeedbackPDFChecks.swift" -o "$source_dir/.build/feedback-pdf-checks"
+"$source_dir/.build/feedback-pdf-checks"

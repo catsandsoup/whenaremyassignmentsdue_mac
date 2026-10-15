@@ -23,6 +23,7 @@ actor FeedbackFiles {
     func obtain(_ file: FeedbackAttachment, token: String) async throws -> FeedbackAttachment {
         if let local = Self.localURL(file, directory: directory),
            let data = try? Data(contentsOf: local), Self.digest(data) == file.contentHash {
+            try FileManager.default.setAttributes([.posixPermissions: 0o400], ofItemAtPath: local.path)
             return file
         }
         guard !token.isEmpty else { throw FeedbackError.unavailable("This file has not been saved on this Mac. Update your API key to download it.") }
@@ -62,8 +63,9 @@ actor FeedbackFiles {
         // Atomic rename occurs before the database references this content; no partial file is ever marked saved.
         if !FileManager.default.fileExists(atPath: target.path) || (try? Data(contentsOf: target)).map(Self.digest) != digest {
             try data.write(to: target, options: .atomic)
-            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: target.path)
         }
+        // Managed originals are read-only. Native document apps can offer Duplicate/Save for edits.
+        try FileManager.default.setAttributes([.posixPermissions: 0o400], ofItemAtPath: target.path)
         copy.contentHash = digest; copy.localPath = relative; copy.cachedSize = data.count
         return copy
     }

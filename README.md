@@ -66,3 +66,11 @@ The reader shows released structured marks, lecturer comments, feedback attachme
 Feedback uses a versioned, local SwiftData store at `~/Library/Application Support/AssignmentDates/Feedback/Feedback.store`. Ordered criteria/ratings have typed relationships; original API payloads remain local for lossless decoding. PDFs live in the adjacent `Files` directory with content hashes. Failed updates retain the last committed marks, comments, rubric and file copies. No automatic login screen replaces saved content. Old course records remain on disk; the default view follows the most recently confirmed academic enrolments.
 
 See the [interaction requirements](docs/marks-feedback-interactions.md) and [verification report](docs/marks-feedback-verification.md). Tests include synthetic data only; real cache data, PDFs and credentials are excluded from this repository.
+
+### Native reader refinements (1.3)
+
+Copy Rubric includes every rating description, even when collapsed. Copy Feedback retains assignment/course context and released-result provenance; selected text remains individually copyable. The assignment list supports native Copy and selection-aware context menus. Criterion titles use native disclosure groups; course headings use collapsible sidebar sections.
+
+Cached PDF icons support dragging named document copies; file context menus offer Quick Look, Open, Save, Show in Finder and Share. Managed originals are read-only, while exported copies are editable. Text Size in the toolbar menu supports 100–200%; View → Larger Text, Smaller Text and Actual Size use ⌘+, ⌘− and ⌘0. These preferences affect the reader, leaving the deadline agenda unchanged.
+
+See the [complete student interaction scope](docs/student-experience-scope.md), [native control comparisons](docs/native-interaction-comparison.md) and [1.3 verification and remaining manual checks](docs/native-reader-verification.md). Siri/App Intents, MCP and a broader course-file library remain researched proposals.

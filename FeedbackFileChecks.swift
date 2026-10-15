@@ -17,6 +17,8 @@ import PDFKit
         let saved = try await files.commit(data, file: file)
         let local = FeedbackFiles.localURL(saved, directory: root)
         precondition(local != nil && saved.contentHash != nil)
+        let permissions = try FileManager.default.attributesOfItem(atPath: local!.path)[.posixPermissions] as! Int
+        precondition(permissions & 0o222 == 0, "Managed originals must not be silently edited by a PDF handler")
         var other = file; other.id = 2
         let duplicate = try await files.commit(data, file: other)
         precondition(duplicate.localPath == saved.localPath && duplicate.id != saved.id)

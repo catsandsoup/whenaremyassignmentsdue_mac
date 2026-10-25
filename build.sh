@@ -7,7 +7,7 @@ mkdir -p "$output_dir"
 deliverable="$output_dir/Assignment Dates.app"
 mkdir -p "$app_dir/Contents/MacOS" "$app_dir/Contents/Resources"
 xcrun swiftc -parse-as-library -O -target arm64-apple-macos27.0 \
-  "$source_dir/Models.swift" "$source_dir/APIClient.swift" "$source_dir/TokenStore.swift" "$source_dir/CanvasStore.swift" "$source_dir/MenuBarController.swift" "$source_dir/MenuBarSettings.swift" "$source_dir/FeedbackAPI.swift" "$source_dir/FeedbackFiles.swift" "$source_dir/FeedbackPersistence.swift" "$source_dir/FeedbackModels.swift" "$source_dir/FeedbackStore.swift" "$source_dir/FeedbackDesignFixture.swift" "$source_dir/FeedbackView.swift" "$source_dir/FeedbackReader.swift" "$source_dir/FeedbackPreview.swift" "$source_dir/FeedbackRubricView.swift" "$source_dir/FeedbackExport.swift" "$source_dir/FeedbackPDF.swift" "$source_dir/FeedbackReading.swift" "$source_dir/FeedbackCopyActions.swift" "$source_dir/AssignmentDates.swift" -o "$app_dir/Contents/MacOS/AssignmentDates" \
+  "$source_dir/Models.swift" "$source_dir/APIClient.swift" "$source_dir/TokenStore.swift" "$source_dir/CanvasStore.swift" "$source_dir/MenuBarController.swift" "$source_dir/MenuBarSettings.swift" "$source_dir/FeedbackAPI.swift" "$source_dir/FeedbackFiles.swift" "$source_dir/FeedbackPersistence.swift" "$source_dir/FeedbackModels.swift" "$source_dir/FeedbackStore.swift" "$source_dir/FeedbackDesignFixture.swift" "$source_dir/AssignmentAssist.swift" "$source_dir/AssignmentMaterialFiles.swift" "$source_dir/AssignmentAssistView.swift" "$source_dir/NativeFileRow.swift" "$source_dir/ComfortableDisclosure.swift" "$source_dir/ModuleMaterials.swift" "$source_dir/ModuleFilesView.swift" "$source_dir/FeedbackView.swift" "$source_dir/FeedbackReader.swift" "$source_dir/FeedbackPreview.swift" "$source_dir/FeedbackRubricView.swift" "$source_dir/FeedbackExport.swift" "$source_dir/FeedbackPDF.swift" "$source_dir/FeedbackReading.swift" "$source_dir/FeedbackCopyActions.swift" "$source_dir/AssignmentDates.swift" -o "$app_dir/Contents/MacOS/AssignmentDates" \
   -framework SwiftUI -framework SwiftData -framework PDFKit -framework QuickLook -framework AppKit -framework Security -framework LocalAuthentication -framework ServiceManagement
 seed_file="$source_dir/Seed.example.json"
 iconset="$source_dir/.build/AppIcon.iconset"
@@ -30,8 +30,8 @@ cat > "$app_dir/Contents/Info.plist" <<'PLIST'
 <key>CFBundleExecutable</key><string>AssignmentDates</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleVersion</key><string>1</string>
-<key>CFBundleShortVersionString</key><string>1.5</string>
+<key>CFBundleVersion</key><string>6</string>
+<key>CFBundleShortVersionString</key><string>2.0</string>
 <key>LSMinimumSystemVersion</key><string>27.0</string>
 <key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>

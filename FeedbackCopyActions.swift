@@ -17,7 +17,8 @@ struct FeedbackCopyActions: View {
     let item: FeedbackItem
     var copied: (String) -> Void = { _ in }
     var body: some View {
-        Button("Copy Feedback", systemImage: "doc.on.doc") { copy(FeedbackExport.feedback(item), notice: "Feedback copied") }
+        Button("Copy Lecturer Comments", systemImage: "doc.on.doc") { copy(FeedbackExport.feedback(item), notice: "Lecturer comments copied") }
+            .disabled(item.comments.isEmpty)
         Button("Copy Rubric", systemImage: "list.clipboard") { copy(FeedbackExport.rubric(item), notice: "Rubric copied") }
             .disabled(!FeedbackExport.hasRubric(item))
     }

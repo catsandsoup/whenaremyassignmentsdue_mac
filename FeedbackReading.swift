@@ -14,8 +14,17 @@ private struct FeedbackFont: ViewModifier {
     let weight: Font.Weight?
     func body(content: Content) -> some View {
         let native = NSFont.preferredFont(forTextStyle: nativeStyle)
-        let resized = NSFont(descriptor: native.fontDescriptor, size: native.pointSize * FeedbackReadingSize.scale(step)) ?? native
-        let font = step == 0 ? Font.system(style) : Font(resized)
+        let readableSize: CGFloat = switch style {
+        case .title: 22
+        case .title2: 18
+        case .title3: 16
+        case .headline: 15
+        case .body: 14
+        case .caption, .caption2, .subheadline, .footnote, .callout: max(12, native.pointSize)
+        default: native.pointSize
+        }
+        let resized = NSFont(descriptor: native.fontDescriptor, size: readableSize * FeedbackReadingSize.scale(step)) ?? native
+        let font = Font(resized)
         content.font(weight.map { font.weight($0) } ?? font)
     }
     private var nativeStyle: NSFont.TextStyle {

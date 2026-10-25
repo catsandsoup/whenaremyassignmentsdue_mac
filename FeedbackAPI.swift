@@ -48,8 +48,7 @@ struct FeedbackAPI: Sendable {
         var request = URLRequest(url: url)
         request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw FeedbackError.invalidData }
+        let (data, http) = try await CanvasNetworking.data(for:request,session:session)
         switch http.statusCode {
         case 401: throw CanvasAPIError.invalidKey
         case 403: throw CanvasAPIError.forbidden

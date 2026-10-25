@@ -2,6 +2,16 @@ import Foundation
 
 // Plain, complete academic text. Presentation/disclosure state and private transport metadata never enter exports.
 enum FeedbackExport {
+    static func fileName(_ file: FeedbackAttachment, item: FeedbackItem) -> String {
+        if item.attachments.contains(where: { $0.id == file.id }), file.isPDF, item.title.hasPrefix("Progress Presentation") {
+            if let range = file.name.range(of: "[0-9]+(?=of[0-9]+)", options: .regularExpression) {
+                return "Presentation " + file.name[range] + " — Feedback.pdf"
+            }
+            return item.title.replacingOccurrences(of: "Progress ", with: "") + " — Feedback.pdf"
+        }
+        return file.name
+    }
+
     static func hasRubric(_ item: FeedbackItem) -> Bool { !item.rubric.isEmpty || !item.assessments.isEmpty }
     private static func context(_ item: FeedbackItem) -> [String] {
         [item.course + " — " + item.originalTitle, "Source: Canvas", ""]

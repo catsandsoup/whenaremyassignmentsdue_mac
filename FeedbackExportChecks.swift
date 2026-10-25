@@ -30,6 +30,10 @@ import Foundation
         precondition(FeedbackExport.hasRubric(item))
         precondition(FeedbackReadingSize.clamped(-100) == 0 && FeedbackReadingSize.clamped(100) == FeedbackReadingSize.maximum)
         precondition(FeedbackReadingSize.scale(0) == 1 && FeedbackReadingSize.scale(FeedbackReadingSize.maximum) >= 2.0)
+        var presentation = FeedbackDesignFixture.items[0]
+        presentation.title = "Progress Presentation 2"
+        let submission = FeedbackAttachment(id:99999,name:"My submitted slides.pdf",url:"https://canvas.sydney.edu.au/files/99999/download",contentType:"application/pdf",size:10)
+        precondition(FeedbackExport.fileName(submission,item:presentation) == submission.name, "Student submission must never be labelled feedback")
         print("PASS: complete rubric/feedback copies preserve context, collapsed ratings, zero/fractions/type/attempt and hidden points; exclude unposted marks, signed URLs and private paths; bounded reading size")
     }
 }

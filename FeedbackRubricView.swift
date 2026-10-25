@@ -1,19 +1,21 @@
 import SwiftUI
 import AppKit
+import QuickLook
 
 struct FeedbackRubricView: View {
     let item: FeedbackItem
+    var dragFile: URL? = nil
     var copied: (String) -> Void = { _ in }
+    @State private var preview: URL?
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Rubric").feedbackFont(.headline).accessibilityAddTraits(.isHeader)
-                Spacer()
-                if FeedbackExport.hasRubric(item) {
-                    Button("Copy Rubric", systemImage: "doc.on.doc") {
-                        copied(FeedbackClipboard.copy(FeedbackExport.rubric(item), confirmation: "Rubric copied"))
-                    }.buttonStyle(.borderless).help("Copy every criterion and rating description, including collapsed sections")
-                }
+            ViewThatFits(in: .horizontal) {
+                HStack { rubricTitle; Spacer(); rubricActions }
+                VStack(alignment: .leading, spacing: 10) { rubricTitle; rubricActions }
+            }
+            if let dragFile {
+                NativeFileRow(name: item.rubricState == .assessed ? "Assessed rubric.txt" : "Marking rubric.txt", detail: "Complete criteria and ratings · Ready to drag", url: dragFile,
+                    preview: { preview = dragFile }, save: { save(dragFile) }, open: { NSWorkspace.shared.open(dragFile) })
             }
             switch item.rubricState {
             case .document:
@@ -49,11 +51,11 @@ struct FeedbackRubricView: View {
                                 Spacer(minLength: 12)
                                 if let score = score(criterion) { Text(score).feedbackFont(.subheadline).fixedSize() }
                             }
-                        }.accessibilityLabel(criterion.description + (score(criterion).map { ", " + $0 } ?? ""))
+                        }
                         if let comment = item.assessments[criterion.id]?.comments, !comment.isEmpty {
                             Text(comment).textSelection(.enabled)
                         }
-                    }.padding(.vertical, 10)
+                    }.padding(.vertical, 6)
                     Divider()
                 }
                 ForEach(item.assessments.keys.filter { id in !item.rubric.contains { $0.id == id } }.sorted(), id: \.self) { id in
@@ -63,6 +65,27 @@ struct FeedbackRubricView: View {
                     }
                 }
             }
+        }.disclosureGroupStyle(ComfortableDisclosureStyle())
+        .quickLookPreview($preview)
+    }
+    private var rubricTitle: some View { Text("Rubric").feedbackFont(.headline).accessibilityAddTraits(.isHeader) }
+    private var rubricActions: some View {
+        HStack(spacing: 12) {
+                if FeedbackExport.hasRubric(item) {
+                    Button("Copy Rubric", systemImage: "doc.on.doc") {
+                        copied(FeedbackClipboard.copy(FeedbackExport.rubric(item), confirmation: "Rubric copied"))
+                    }.controlSize(.large).help("Copy every criterion and rating description, including collapsed sections")
+                }
+        }
+    }
+    private func save(_ url: URL) {
+        let panel = NSSavePanel(); panel.nameFieldStringValue = url.lastPathComponent
+        panel.directoryURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+        guard let window = NSApp.keyWindow else { return }
+        panel.beginSheetModal(for: window) { response in
+            guard response == .OK, let destination = panel.url else { return }
+            do { try Data(contentsOf: url).write(to: destination, options: .atomic); copied("Rubric saved") }
+            catch { copied("Could not save this rubric: " + error.localizedDescription) }
         }
     }
     private func score(_ criterion: FeedbackCriterion) -> String? {

@@ -5,18 +5,30 @@ import Accessibility
 struct FeedbackWindowView: View {
     @ObservedObject var store: FeedbackStore
     @AppStorage("feedbackReadingSize") private var readingStep = 0
+    @State private var scope = AssignmentScope.all
     @State private var copyNotice = ""
     @StateObject private var preview = FeedbackPreview()
     @AppStorage("feedbackSelection") private var savedSelection = ""
     @State private var state = FeedbackSelection()
     @FocusState private var searchFocused: Bool
     @FocusState private var listFocused: Bool
-    private var selected: FeedbackItem? { state.item(in: store.items) }
+    private var selected: FeedbackItem? { state.item(in: store.items.filter { scope.includes($0) }) }
     private var filtered: [FeedbackItem] {
         var search = state; search.collapsedCourses = []
-        return search.visible(store.items)
+        return search.visible(store.items).filter { scope.includes($0) }
     }
     var body: some View {
+        Group {
+            if store.moduleFilesRequested { ModuleFilesView(feedback:store) { store.moduleFilesRequested = false } }
+            else { assignmentsBody }
+        }
+        .environment(\.feedbackReadingStep, FeedbackReadingSize.clamped(readingStep))
+        .frame(minWidth:850,minHeight:570)
+        .onChange(of:store.requestedAssignmentID) { _,_ in followAgendaSelection() }
+        .onChange(of:store.items.map(\.id)) { _,_ in followAgendaSelection() }
+        .onAppear { followAgendaSelection() }
+    }
+    private var assignmentsBody: some View {
         NavigationSplitView {
             VStack(spacing: 0) {
                 HStack(spacing: 6) {
@@ -29,12 +41,19 @@ struct FeedbackWindowView: View {
                         .onExitCommand { state.search = ""; searchFocused = false; listFocused = true }
                     if !state.search.isEmpty {
                         Button { state.search = "" } label: { Image(systemName: "xmark.circle.fill") }
-                            .buttonStyle(.plain).accessibilityLabel("Clear search")
+                            .buttonStyle(.plain).frame(minWidth: 28, minHeight: 28).contentShape(Rectangle()).accessibilityLabel("Clear search")
                     }
                 }
                 .padding(9).background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
                 .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 10)
+                Picker("Show assignments",selection:$scope) {
+                    ForEach(AssignmentScope.allCases,id:\.self) { Text($0.rawValue).tag($0) }
+                }.pickerStyle(.segmented).controlSize(.large).labelsHidden().padding(.horizontal,16).padding(.bottom,10)
                 assignmentList
+                Divider()
+                Button { store.moduleFilesRequested = true } label: {
+                    Label("Module Files",systemImage:"books.vertical").feedbackFont(.body).frame(maxWidth:.infinity,minHeight:32,alignment:.leading).contentShape(Rectangle())
+                }.controlSize(.large).padding(12).help("Teaching files for one week or all modules")
             }
             .feedbackFont(.body)
             .navigationSplitViewColumnWidth(min: 270, ideal: 340, max: 440)
@@ -53,36 +72,38 @@ struct FeedbackWindowView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(.background)
-            .navigationTitle("Marks & Feedback")
+            .navigationTitle("Assignments")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Link("Open in Canvas", destination: selectedCanvasURL ?? URL(string: "https://canvas.sydney.edu.au")!)
+                    Button { if let url = selectedCanvasURL { NSWorkspace.shared.open(url) } } label: {
+                        Text("Open in Canvas").frame(minHeight:28).padding(.horizontal,6).contentShape(Rectangle())
+                    }
                         .disabled(selectedCanvasURL == nil)
                         .help("Open this assessment in your browser for submission and other Canvas actions")
                 }
                 ToolbarSpacer(.fixed, placement: .primaryAction)
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Quick Look", systemImage: "eye") { if let selected { showPreview(selected) } }
+                    Button { if let selected { showPreview(selected) } } label: { Label("Preview",systemImage:"eye").frame(minWidth:28,minHeight:28).contentShape(Rectangle()) }
                         .keyboardShortcut("y", modifiers: .command)
                         .disabled(selected?.previewFiles.isEmpty != false || preview.loading)
                         .help("Preview attached documents (Space when an assessment is selected, or ⌘Y)")
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
-                        if let selected { FeedbackCopyActions(item: selected) { copyNotice = $0 } }
+                        FeedbackReadingActions(step: $readingStep)
                         Divider()
                         Picker("Text Size", selection: $readingStep) {
                             ForEach(0...FeedbackReadingSize.maximum, id: \.self) { step in
                                 Text("\(100 + step * 10)%").tag(step)
                             }
                         }
-                    } label: { Image(systemName: "ellipsis.circle") }
-                    .help("Copy and reading options").accessibilityLabel("Copy and reading options")
+                    } label: { Label("Text Size", systemImage: "textformat.size").frame(minWidth:28,minHeight:28).contentShape(Rectangle()) }
+                    .help("Adjust text size throughout the app").accessibilityLabel("Text Size")
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button { store.refresh() } label: {
                         if store.syncing { ProgressView().controlSize(.small) }
-                        else { Image(systemName: "arrow.clockwise") }
+                        else { Image(systemName: "arrow.clockwise").frame(minWidth:28,minHeight:28).contentShape(Rectangle()) }
                     }.disabled(store.syncing).help("Refresh marks and feedback")
                         .accessibilityLabel("Refresh marks and feedback")
                 }
@@ -118,6 +139,9 @@ struct FeedbackWindowView: View {
             listFocused = true
             store.refreshIfNeeded()
         }
+        .onChange(of:scope) { _,_ in
+            if !filtered.contains(where: { $0.id == state.selectionID }) { state.select(filtered.first?.id,in:store.items) }
+        }
         .onChange(of: state.search) { _, _ in state.reconcile(in: store.items) }
         .onChange(of: state.selectionID) { _, value in savedSelection = value ?? ""; preview.cancel() }
         .onChange(of: store.items.map(\.id)) { old, _ in
@@ -129,6 +153,11 @@ struct FeedbackWindowView: View {
         .background {
             Button("Find") { searchFocused = true }.keyboardShortcut("f").hidden()
         }
+    }
+    private func followAgendaSelection() {
+        guard let id = store.requestedAssignmentID, let item = store.items.first(where: { $0.assignmentID == id }) else { return }
+        store.moduleFilesRequested = false; scope = .all; state.search = ""; state.collapsedCourses.remove(item.course)
+        state.select(item.id,in:store.items); store.requestedAssignmentID = nil
     }
     private var assignmentList: some View {
                 List(selection: Binding(get: { state.selectionID }, set: { state.select($0, in: store.items) })) {
@@ -166,7 +195,7 @@ struct FeedbackWindowView: View {
                 .overlay { if filtered.isEmpty { Text("No matching assignments").foregroundStyle(.secondary) } }
     }
     private func selectSearchResult() {
-        let rows = FeedbackFormat.groups(state.visible(store.items)).flatMap(\.1)
+        let rows = FeedbackFormat.groups(filtered).flatMap(\.1)
         state.select(selected?.id ?? rows.first?.id, in: store.items)
         searchFocused = false; listFocused = true
     }
@@ -196,8 +225,8 @@ private struct FeedbackSidebarRow: View {
         HStack(spacing: 12) {
             Image(systemName: "doc").feedbackFont(.title2).foregroundStyle(.secondary).frame(width: 24)
             VStack(alignment: .leading, spacing: 3) {
-                Text(item.title).feedbackFont(.body).lineLimit(2)
-                Text(item.subtitle).feedbackFont(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                Text(item.title).feedbackFont(.body).lineLimit(3)
+                if !item.navigationSubtitle.isEmpty { Text(item.navigationSubtitle).feedbackFont(.callout).foregroundStyle(.secondary).lineLimit(2) }
             }
             Spacer(minLength: 0)
             if let mark = item.markLabel { Text(mark).feedbackFont(.body, weight: .semibold) }
@@ -205,6 +234,6 @@ private struct FeedbackSidebarRow: View {
         .help(item.originalTitle)
         .padding(.vertical, 9)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(item.course + ", " + item.title + ", " + (item.markLabel ?? item.subtitle))
+        .accessibilityLabel(item.course + ", " + item.title + ", " + (item.markLabel ?? item.navigationSubtitle))
     }
 }

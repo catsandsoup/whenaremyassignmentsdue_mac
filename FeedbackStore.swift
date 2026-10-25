@@ -3,6 +3,8 @@ import Combine
 import AppKit
 
 @MainActor final class FeedbackStore: ObservableObject {
+    @Published var requestedAssignmentID: Int?
+    @Published var moduleFilesRequested = false
     @Published var items: [FeedbackItem] = []
     @Published var syncing = false
     @Published var errorMessage: String?
@@ -13,9 +15,11 @@ import AppKit
     let directory: URL
     private let api: FeedbackAPI
     private let keyProvider: () -> String?
+    var permitsAutomaticNetwork: Bool { automaticallyRefresh && !designMode }
     private let automaticallyRefresh: Bool
     private var repository: FeedbackRepository?
     private let files: FeedbackFiles
+    private let assignmentAssist: AssignmentAssistService
     private var timer: Timer?
     private var wakeObserver: NSObjectProtocol?
     private var lastAttempt = Date.distantPast
@@ -25,6 +29,7 @@ import AppKit
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         self.directory = directory ?? support.appendingPathComponent("AssignmentDates/Feedback")
         files = FeedbackFiles(directory: self.directory)
+        assignmentAssist = AssignmentAssistService(directory: self.directory.appendingPathComponent("AssignmentMaterials"))
         if designMode { items = FeedbackDesignFixture.items; checkedAt = "2026-10-15T06:21:00Z"; return }
         loading = Task { [weak self] in
             guard let self else { return }
@@ -76,6 +81,21 @@ import AppKit
                 errorMessage = "Updates unavailable. Your saved feedback and PDFs remain available. " + error.localizedDescription
             }
         }
+    }
+    func prepareAssignment(_ item: FeedbackItem) async throws -> AssignmentAssistPlan {
+        try await assignmentAssist.prepare(item, token: designMode ? nil : keyProvider())
+    }
+    func cachedMaterialPlan(_ item: FeedbackItem) async -> AssignmentAssistPlan { await assignmentAssist.cachedPlan(item) }
+    func materialTexts(_ plan: AssignmentAssistPlan) async throws -> [AssignmentMaterial] { try await assignmentAssist.readyTexts(plan) }
+    func materialFile(_ file: FeedbackAttachment, plan: AssignmentAssistPlan, cachedOnly: Bool = false) async throws -> AssignmentMaterial {
+        try await assignmentAssist.readyFile(file, plan: plan, token: designMode || cachedOnly ? nil : keyProvider())
+    }
+    func saveMaterials(_ materials: [AssignmentMaterial], plan: AssignmentAssistPlan) async throws -> URL {
+        let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
+        return try await assignmentAssist.saveReady(materials, plan: plan, to: downloads)
+    }
+    func exportAssignment(_ plan: AssignmentAssistPlan, selected: Set<Int>, localFiles: [URL], to destination: URL) async throws -> [String] {
+        try await assignmentAssist.export(plan, selected: selected, localFiles: localFiles, to: destination, token: designMode ? nil : keyProvider())
     }
     func localURL(_ file: FeedbackAttachment) -> URL? { FeedbackFiles.localURL(file, directory: directory) }
     func obtain(_ file: FeedbackAttachment, itemID: String) async -> URL? {

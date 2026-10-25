@@ -8,6 +8,7 @@ struct AssignmentSettings: View {
     @AppStorage("menuBarShowIcon") private var showIcon = false
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginError: String?
+    @AppStorage("feedbackReadingSize") private var readingStep = 0
 
     var body: some View {
         Form {
@@ -23,7 +24,15 @@ struct AssignmentSettings: View {
                     if display == "icon" || showIcon { Image(systemName: "calendar.badge.clock") }
                 }
             } header: { Text("Menu Bar") } footer: {
-                Text("Shows the next future deadline. Days follow Sydney calendar dates; on the due date, the label says “due today”. Updates every minute, including offline.")
+                Text("Shows your next deadline using Sydney dates. The countdown updates every minute, including offline.")
+            }
+            Section("Reading") {
+                Picker("Text size", selection: $readingStep) {
+                    ForEach(0...FeedbackReadingSize.maximum, id: \.self) { step in
+                        Text("\(100 + step * 10)%").tag(step)
+                    }
+                }
+                Text("Applies to assignments, feedback and the menu bar agenda.").feedbackFont(.callout).foregroundStyle(.secondary)
             }
             Section("General") {
                 Toggle("Launch at login", isOn: $launchAtLogin)
@@ -41,14 +50,18 @@ struct AssignmentSettings: View {
             }
             Section {
                 LabeledContent("Automatic updates", value: "Every 30 minutes")
+                if let checked = store.snapshot?.checkedAt { LabeledContent("Last updated", value: FeedbackFormat.time(checked)) }
+                if store.errorMessage != nil { Text("Updates paused. Your saved timetable remains available.").feedbackFont(.callout) }
                 Button("Update API key…") { store.updateAPIKey() }
             } header: { Text("Canvas") } footer: {
                 Text("Your saved timetable stays available if the API key expires or Canvas cannot be reached.")
             }
         }
         .formStyle(.grouped)
-        .frame(width: 440)
-        .fixedSize(horizontal: false, vertical: true)
+        .feedbackFont(.body)
+        .environment(\.feedbackReadingStep, FeedbackReadingSize.clamped(readingStep))
+        .frame(width: 490, height: min(760, (NSScreen.main?.visibleFrame.height ?? 900) - 100))
         .scenePadding()
+        .windowMinimizeBehavior(.enabled)
     }
 }

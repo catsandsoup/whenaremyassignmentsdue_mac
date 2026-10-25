@@ -4,8 +4,10 @@ import PDFKit
 
 actor FeedbackFiles {
     let directory: URL
+    let allowsHTMLTeachingFiles: Bool
     let session: URLSession
-    init(directory: URL, session: URLSession? = nil) {
+    init(directory: URL, session: URLSession? = nil, allowsHTMLTeachingFiles: Bool = false) {
+        self.allowsHTMLTeachingFiles = allowsHTMLTeachingFiles
         self.directory = directory
         let config = URLSessionConfiguration.ephemeral
         config.httpCookieStorage = nil; config.httpShouldSetCookies = false
@@ -30,9 +32,8 @@ actor FeedbackFiles {
         guard let url = URL(string: file.url), url.scheme == "https" else { throw FeedbackError.invalidData }
         var request = URLRequest(url: url)
         if url.host == "canvas.sydney.edu.au" { request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization") }
-        let (temporary, response) = try await session.download(for: request)
+        let (temporary, http) = try await CanvasNetworking.download(for:request,session:session)
         defer { try? FileManager.default.removeItem(at: temporary) }
-        guard let http = response as? HTTPURLResponse else { throw FeedbackError.invalidData }
         switch http.statusCode {
         case 401: throw CanvasAPIError.invalidKey
         case 403: throw CanvasAPIError.forbidden
@@ -47,7 +48,8 @@ actor FeedbackFiles {
     func commit(_ data: Data, file: FeedbackAttachment) throws -> FeedbackAttachment {
         guard !data.isEmpty else { throw FeedbackError.invalidData }
         let beginning = String(decoding: data.prefix(512), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !beginning.hasPrefix("<!doctype html"), !beginning.hasPrefix("<html") else { throw FeedbackError.unavailable("Canvas returned a web page instead of the attachment. Your saved files are unchanged.") }
+        let expectedHTML = allowsHTMLTeachingFiles && ["html", "htm"].contains(URL(fileURLWithPath:file.name).pathExtension.lowercased()) && file.contentType.lowercased().hasPrefix("text/html")
+        guard expectedHTML || (!beginning.hasPrefix("<!doctype html") && !beginning.hasPrefix("<html")) else { throw FeedbackError.unavailable("Canvas returned a web page instead of the attachment. Your saved files are unchanged.") }
         var copy = file
         if file.isPDF {
             guard data.starts(with: Data("%PDF-".utf8)), let document = PDFDocument(data: data), document.pageCount > 0 else { throw FeedbackError.unavailable("The downloaded file is not a valid PDF. Your saved files are unchanged.") }

@@ -115,6 +115,17 @@ struct FeedbackItem: Codable, Sendable, Identifiable {
         return "Mark not available"
     }
     var recentDate: Date { comments.compactMap { $0.createdAt.flatMap(Deadlines.date) }.max() ?? postedAt.flatMap(Deadlines.date) ?? .distantPast }
+    var prioritizesFeedback: Bool { markLabel != nil || !comments.isEmpty || !assessments.isEmpty }
+    var navigationSubtitle: String {
+        if prioritizesFeedback { return subtitle }
+        if missing { return "Missing submission" }
+        switch workflowState {
+        case "submitted", "pending_review": return "Submitted"
+        case "unsubmitted": return "Not submitted"
+        case "graded": return "Result not released"
+        default: return ""
+        }
+    }
 }
 struct FeedbackAttempt: Codable, Sendable, Identifiable {
     var attempt: Int
@@ -146,4 +157,22 @@ struct FeedbackSelection {
     func item(in items: [FeedbackItem]) -> FeedbackItem? { visible(items).first { $0.id == selectionID } }
     mutating func select(_ id: String?, in items: [FeedbackItem]) { selectionID = visible(items).contains { $0.id == id } ? id : nil }
     mutating func reconcile(in items: [FeedbackItem]) { if item(in: items) == nil { selectionID = nil } }
+}
+
+
+extension FeedbackItem {
+    var dueAt: String? { sourceAssignment.flatMap { try? FeedbackAPIObject.due($0) } }
+}
+private enum FeedbackAPIObject {
+    static func due(_ data: Data) throws -> String? { (try JSONSerialization.jsonObject(with:data) as? [String:Any])?["due_at"] as? String }
+}
+enum AssignmentScope: String, CaseIterable {
+    case upcoming = "Upcoming", feedback = "Feedback", all = "All"
+    func includes(_ item: FeedbackItem, now: Date = Date()) -> Bool {
+        switch self {
+        case .all: true
+        case .feedback: item.prioritizesFeedback
+        case .upcoming: item.dueAt.flatMap(Deadlines.date).map { $0 >= Calendar.current.startOfDay(for:now) } ?? false
+        }
+    }
 }

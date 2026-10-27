@@ -81,7 +81,7 @@ struct CanvasAPIClient {
         let enrolled: [EnrolledCourse] = try await pages("/api/v1/courses?enrollment_type=student&enrollment_state=active&include[]=term&include[]=concluded&per_page=100", token: token)
         var courses: [CanvasCourse] = []
         for course in enrolled where course.isCurrentAcademicCourse(at: now) {
-            let assignments: [CanvasAssignment] = try await pages("/api/v1/courses/\(course.id)/assignments?per_page=100", token: token)
+            let assignments: [CanvasAssignment] = try await pages("/api/v1/courses/\(course.id)/assignments?include[]=submission&per_page=100", token: token)
             courses.append(CanvasCourse(id: course.id, name: course.name ?? course.course_code!,
                 course_code: course.course_code!, assignments: assignments))
         }

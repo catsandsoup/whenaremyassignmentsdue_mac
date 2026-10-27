@@ -40,9 +40,11 @@ struct APIChecks {
                 return (200, ["Link":"<https://canvas.sydney.edu.au/api/v1/courses?page=2>; rel=\"next\""], Data(#"[{"id":1,"name":"Finance","course_code":"FINC6001 (ND)","workflow_state":"available","term":{"end_at":"2026-12-31T00:00:00Z"}}]"#.utf8))
             }
             precondition(url.path == "/api/v1/courses/1/assignments", "Only the currently enrolled academic course may be fetched")
-            return (200, [:], Data(#"[{"id":7,"name":"Report","due_at":"2026-10-23T12:59:59Z","html_url":"https://canvas.sydney.edu.au/courses/1/assignments/7","published":true}]"#.utf8))
+            precondition(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.contains(where: { $0.name == "include[]" && $0.value == "submission" }) == true, "Agenda requests must include the current student's submission")
+            return (200, [:], Data(#"[{"id":7,"name":"Report","due_at":"2026-10-23T12:59:59Z","html_url":"https://canvas.sydney.edu.au/courses/1/assignments/7","published":true,"submission":{"workflow_state":"submitted","submitted_at":"2026-10-15T00:00:00Z"}}]"#.utf8))
         }
         let snapshot = try await client.fetchSnapshot(token: "fixture-token", now: now)
+        precondition(snapshot.courses.first?.assignments.first?.isSubmitted == true, "Decode live submission association")
         precondition(snapshot.courses.map(\.id) == [1], "Filter admin, concluded, and old terms")
         precondition(Deadlines.rows(snapshot, now: now).count == 1)
         for status in [401, 403, 429, 500] {

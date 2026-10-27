@@ -1,11 +1,26 @@
 import Foundation
 
+struct CanvasDeadlineSubmission: Codable {
+    let workflow_state: String?
+    let submitted_at: String?
+    let redo_request: Bool?
+
+    var isSubmitted: Bool {
+        // A grade alone can be a missing-work zero. Reassigned work still needs action.
+        guard redo_request != true, workflow_state != "unsubmitted" else { return false }
+        return submitted_at.flatMap(Deadlines.date) != nil
+            || workflow_state == "submitted" || workflow_state == "pending_review"
+    }
+}
+
 struct CanvasAssignment: Codable, Identifiable {
     let id: Int
     let name: String
     let due_at: String?
     let html_url: String?
     let published: Bool?
+    var submission: CanvasDeadlineSubmission? = nil
+    var isSubmitted: Bool { submission?.isSubmitted == true }
     var displayName: String {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         if trimmed.hasPrefix("Assessment 2: Progress presentations") {
@@ -40,6 +55,12 @@ struct DeadlineRow: Identifiable {
     let course: String
     let due: Date
     let assignments: [CanvasAssignment]
+    var isSubmitted: Bool { !assignments.isEmpty && assignments.allSatisfy(\.isSubmitted) }
+    var submissionLabel: String? {
+        let submitted = assignments.filter(\.isSubmitted).count
+        guard submitted > 0 else { return nil }
+        return isSubmitted ? "Submitted" : "\(submitted) of \(assignments.count) submitted"
+    }
 }
 
 enum Deadlines {

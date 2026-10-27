@@ -16,10 +16,14 @@ struct AgendaAssignment: View {
             if row.assignments.count > 1 {
                 Menu {
                     ForEach(row.assignments) { assignment in
-                        Button(assignment.name) { MenuBarAppDelegate.controller?.showAssignment(assignment.id) }
+                        Button { MenuBarAppDelegate.controller?.showAssignment(assignment.id) } label: {
+                            Text(assignment.name + (assignment.isSubmitted ? " — Submitted" : ""))
+                                .strikethrough(assignment.isSubmitted)
+                        }
                     }
                 } label: {
                     Text(title + (row.assignments.count > 2 ? " (\(row.assignments.count) submissions)" : ""))
+                        .strikethrough(row.isSubmitted)
                         .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading).contentShape(Rectangle())
                         .feedbackFont(.body).foregroundStyle(.primary)
                         .multilineTextAlignment(.leading)
@@ -28,14 +32,14 @@ struct AgendaAssignment: View {
                 .fixedSize(horizontal: false, vertical: true)
             } else if let assignment = row.assignments.first {
                 Button { MenuBarAppDelegate.controller?.showAssignment(assignment.id) } label: {
-                    Text(assignment.displayName).feedbackFont(.body).foregroundStyle(.primary)
+                    Text(assignment.displayName).strikethrough(assignment.isSubmitted).feedbackFont(.body).foregroundStyle(.primary)
                         .multilineTextAlignment(.leading).frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).help(assignment.name + " — open assignment")
-                .accessibilityLabel(assignment.name + ", open assignment")
+                .accessibilityLabel(assignment.name + (assignment.isSubmitted ? ", submitted" : "") + ", open assignment")
             } else { Text(title) }
-            Text(row.course + " · " + Deadlines.timeLabel(row.due))
+            Text(row.course + " · " + Deadlines.timeLabel(row.due) + (row.submissionLabel.map { " · " + $0 } ?? ""))
                 .feedbackFont(.callout).foregroundStyle(.primary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -32,6 +32,31 @@ struct ModelChecks {
         precondition(MenuBarDeadline.text(rows: rows, now: justAfter) == "FINC6001 in 2d", "Advance after exact deadline")
         precondition(MenuBarDeadline.text(rows: rows, now: afterSemester) == nil, "No negative countdowns")
         precondition(MenuBarDeadline.text(rows: [], now: now) == nil)
+        func assignment(_ submission: String?) throws -> CanvasAssignment {
+            let extra = submission.map { ",\"submission\":" + $0 } ?? ""
+            return try JSONDecoder().decode(CanvasAssignment.self, from: Data(("{\"id\":1,\"name\":\"Report\"" + extra + "}").utf8))
+        }
+        let submitted = try assignment(#"{"workflow_state":"submitted","submitted_at":"2026-10-15T01:00:00Z"}"#)
+        precondition(submitted.isSubmitted)
+        let pending = try assignment(#"{"workflow_state":"pending_review"}"#)
+        precondition(pending.isSubmitted)
+        let graded = try assignment(#"{"workflow_state":"graded","submitted_at":"2026-10-15T01:00:00Z"}"#)
+        precondition(graded.isSubmitted)
+        for payload in [nil, "null", #"{"workflow_state":"unsubmitted"}"#,
+                        #"{"workflow_state":"graded","score":0}"#,
+                        #"{"workflow_state":"submitted","redo_request":true}"#,
+                        #"{"workflow_state":"unsubmitted","submitted_at":"2026-10-15T01:00:00Z"}"#] {
+            let item = try assignment(payload)
+            precondition(!item.isSubmitted, "Unknown, unsubmitted, grade-only and reassigned work must remain actionable")
+        }
+        let unsent = try assignment(nil)
+        let mixed = DeadlineRow(id: "mixed", course: "TEST1001", due: now, assignments: [submitted, unsent])
+        precondition(!mixed.isSubmitted && mixed.submissionLabel == "1 of 2 submitted")
+        let complete = DeadlineRow(id: "done", course: "TEST1001", due: now, assignments: [submitted, submitted])
+        precondition(complete.isSubmitted && complete.submissionLabel == "Submitted")
+        let roundTrip = try JSONDecoder().decode(CanvasAssignment.self, from: JSONEncoder().encode(submitted))
+        precondition(roundTrip.isSubmitted, "Submission status must survive offline caching")
+        print("PASS: submitted deadline status, pending review, graded submissions, missing-work zeros, reassignment, mixed groups and offline status")
         print("PASS: next-deadline menu label, calendar days, due today, automatic progression and no future deadlines")
         print("PASS: 9 deadlines, 16 links, 7 group submissions, AEST/AEDT, admin exclusion, and past-deadline filtering")
     }

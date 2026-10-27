@@ -11,7 +11,6 @@ struct ModuleFilesView: View {
     @State private var selectedID: Int?
     @State private var ready: [Int: [AssignmentMaterial]] = [:]
     @State private var plans: [Int: AssignmentAssistPlan] = [:]
-    @State private var showPages = false
     @State private var loading = false
     @State private var saving = false
     @State private var status = ""
@@ -47,7 +46,7 @@ struct ModuleFilesView: View {
                 Button { save(all:true) } label: {
                     Label("Save All Modules",systemImage:"square.and.arrow.down").feedbackFont(.body).frame(maxWidth:.infinity,minHeight:32).contentShape(Rectangle())
                 }.disabled(modules.isEmpty || loading || saving).help("Collect all modules in this subject and save them to a new folder in Downloads")
-                Text("Saves to Downloads, organised by module.").feedbackFont(.callout).foregroundStyle(.secondary)
+                Text("All weeks, organised into module and page folders.").feedbackFont(.callout).foregroundStyle(.secondary)
             }.padding(16).navigationSplitViewColumnWidth(min:260,ideal:310,max:420)
         } detail: {
             VStack(alignment:.leading,spacing:16) {
@@ -65,18 +64,12 @@ struct ModuleFilesView: View {
                     ScrollView {
                         LazyVStack(alignment:.leading,spacing:12) {
                             let materials = ready[selected.id] ?? []
-                            ForEach(materials.filter { Int($0.id) != nil && !isPageImage($0,module:selected) }) { material in moduleFileRow(material) }
-                            let images = materials.filter { isPageImage($0,module:selected) }
-                            if !images.isEmpty {
-                                DisclosureGroup("Page images (\(images.count))") {
-                                    ForEach(images) { material in moduleFileRow(material) }
-                                }.disclosureGroupStyle(ComfortableDisclosureStyle())
-                            }
-                            let pages = materials.filter { Int($0.id) == nil }
-                            if !pages.isEmpty {
-                                DisclosureGroup("Module pages & source links (\(pages.count))",isExpanded:$showPages) {
-                                    ForEach(pages) { material in moduleFileRow(material) }
-                                }.disclosureGroupStyle(ComfortableDisclosureStyle())
+                            if let plan = plans[selected.id] {
+                                ForEach(ModuleMaterialService.groups(plan,materials:materials)) { group in
+                                    ModulePageGroup(group:group,materials:materials.filter { group.materialIDs.contains($0.id) },
+                                        preview: { preview = $0 },save:saveFile)
+                                        .id("\(selected.id):\(group.id)")
+                                }
                             }
                             if let plan = plans[selected.id], !plan.warnings.isEmpty {
                                 DisclosureGroup("Collection notes (\(plan.warnings.count))") {
@@ -91,7 +84,7 @@ struct ModuleFilesView: View {
                 }
                 if !error.isEmpty { Label(error,systemImage:"exclamationmark.triangle").feedbackFont(.callout).textSelection(.enabled) }
                 if let savedFolder {
-                    HStack { Text("Saved to Downloads").feedbackFont(.callout); Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([savedFolder]) } }
+                    HStack { Text("Saved to Downloads in module and page folders").feedbackFont(.callout); Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([savedFolder]) } }
                 }
             }.padding(24).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading)
             .navigationTitle("Module Files")
@@ -116,20 +109,7 @@ struct ModuleFilesView: View {
         .task(id:selectedID) { await fetchSelected() }
         .onDisappear { actionTask?.cancel() }
     }
-    private func isPageImage(_ material:AssignmentMaterial,module:CanvasModule) -> Bool {
-        guard let id = Int(material.id), let url = material.url,
-              ["png","jpg","jpeg","gif","webp","svg","tiff","ico"].contains(url.pathExtension.lowercased()) else { return false }
-        return !module.items.contains { $0.type == "File" && $0.content_id == id }
-    }
-    @ViewBuilder private func moduleFileRow(_ material:AssignmentMaterial) -> some View {
-        if let url = material.url {
-            NativeFileRow(name:material.name,detail:material.note,url:url,exportName:material.name,
-                preview:{preview = url},save:{saveFile(material)},open:{NSWorkspace.shared.open(url)})
-        } else {
-            Label { VStack(alignment:.leading,spacing:4) { Text(material.name).feedbackFont(.body); Text(material.note).feedbackFont(.callout).foregroundStyle(.secondary) } } icon: { Image(systemName:"exclamationmark.triangle") }.padding(12)
-        }
-    }
-    private var instructions: some View { Text("Drag ready files into Finder or your AI. Save a copy to Downloads.").feedbackFont(.callout).foregroundStyle(.secondary) }
+    private var instructions: some View { Text("Files are grouped by their Canvas page. Drag a file, save this module, or save all modules.").feedbackFont(.callout).foregroundStyle(.secondary) }
     private var saveModule: some View {
         Button { save(all:false) } label: { Label("Save This Module",systemImage:"square.and.arrow.down").feedbackFont(.body).frame(minHeight:32).contentShape(Rectangle()) }
             .disabled(selected == nil || loading || saving)
@@ -151,13 +131,13 @@ struct ModuleFilesView: View {
     }
     private func fetchSelected() async {
         guard let module = selected, !saving else { return }
-        if let files = ready[module.id] { showPages = !files.contains { Int($0.id) != nil }; return }
+        if ready[module.id] != nil { return }
         loading = true; status = "Collecting " + module.name + "…"
         do {
             let token = self.token
             let plan = try await service.prepare(module,courseID:courseID,course:courseName,token:token)
             let (files,updated) = try await service.ready(plan,token:token)
-            guard !Task.isCancelled else { return }; plans[module.id] = updated; ready[module.id] = files; showPages = !files.contains { Int($0.id) != nil }
+            guard !Task.isCancelled else { return }; plans[module.id] = updated; ready[module.id] = files
         } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
         if !Task.isCancelled { loading = false }
     }
@@ -203,6 +183,62 @@ struct ModuleFilesView: View {
             guard response == .OK, let destination = panel.url else { return }
             do { try Data(contentsOf:url).write(to:destination,options:.atomic) }
             catch { self.error = error.localizedDescription }
+        }
+    }
+}
+
+
+private struct ModulePageGroup: View {
+    let group: AssistMaterialGroup
+    let materials: [AssignmentMaterial]
+    let preview: (URL) -> Void
+    let save: (AssignmentMaterial) -> Void
+    @State private var expanded: Bool
+    init(group: AssistMaterialGroup, materials: [AssignmentMaterial], preview: @escaping (URL) -> Void, save: @escaping (AssignmentMaterial) -> Void) {
+        self.group = group; self.materials = materials; self.preview = preview; self.save = save
+        _expanded = State(initialValue: materials.contains { Int($0.id) != nil && !Self.isImage($0) })
+    }
+    private static func isImage(_ material: AssignmentMaterial) -> Bool {
+        ["png","jpg","jpeg","gif","webp","svg","tiff","ico"].contains((material.name as NSString).pathExtension.lowercased())
+    }
+    private var documents: [AssignmentMaterial] { materials.filter { Int($0.id) != nil && !Self.isImage($0) } }
+    var body: some View {
+        DisclosureGroup(isExpanded:$expanded) {
+            VStack(alignment:.leading,spacing:10) {
+                if let raw = group.sourceURL, let url = AssignmentAssistContent.cleanURL(raw) {
+                    Link("Open page in Canvas",destination:url).feedbackFont(.callout).padding(.vertical,6)
+                }
+                ForEach(documents) { row($0) }
+                let images = materials.filter { Self.isImage($0) }
+                if !images.isEmpty {
+                    DisclosureGroup("Page images (\(images.count))") { ForEach(images) { row($0) } }
+                        .disclosureGroupStyle(ComfortableDisclosureStyle())
+                }
+                let texts = materials.filter { Int($0.id) == nil }
+                if !texts.isEmpty {
+                    DisclosureGroup("Page text & links (\(texts.count))") { ForEach(texts) { row($0) } }
+                        .disclosureGroupStyle(ComfortableDisclosureStyle())
+                }
+                if materials.isEmpty { Text("No downloadable attachments on this page.").feedbackFont(.callout).foregroundStyle(.secondary) }
+            }.padding(.vertical,10)
+        } label: {
+            VStack(alignment:.leading,spacing:4) {
+                Text(group.title).feedbackFont(.headline).fixedSize(horizontal:false,vertical:true)
+                Text("\(documents.count) attachment\(documents.count == 1 ? "" : "s") · Includes page text and linked resources")
+                    .feedbackFont(.callout).foregroundStyle(.secondary)
+            }.padding(.vertical,6)
+        }
+        .disclosureGroupStyle(ComfortableDisclosureStyle())
+    }
+    @ViewBuilder private func row(_ material: AssignmentMaterial) -> some View {
+        if let url = material.url {
+            NativeFileRow(name:material.name,detail:material.note,url:url,exportName:material.name,
+                preview:{preview(url)},save:{save(material)},open:{NSWorkspace.shared.open(url)})
+        } else {
+            Label { VStack(alignment:.leading,spacing:4) {
+                Text(material.name).feedbackFont(.body)
+                Text(material.note).feedbackFont(.callout).foregroundStyle(.secondary)
+            } } icon: { Image(systemName:"exclamationmark.triangle") }.padding(12)
         }
     }
 }

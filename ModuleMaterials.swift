@@ -80,6 +80,7 @@ actor ModuleMaterialService {
         plan.links = ["https://canvas.sydney.edu.au/courses/\(courseID)/modules/\(module.id)"]
         let catalog = cachedCatalog(courseID:courseID) ?? []
         let otherModulePages = Set(catalog.filter { $0.id != module.id }.flatMap(\.items).compactMap(\.page_url))
+        plan.materialGroups = []
         var incompletePages = false
         var fileIDs: [Int] = [], pageQueue: [String] = [], visitedPages = Set<String>()
         for item in module.items {
@@ -92,6 +93,10 @@ actor ModuleMaterialService {
                 plan.warnings.append(item.title + ": Canvas " + item.type + " item is linked, not downloaded as a teaching file.")
             }
         }
+        let directIDs = module.items.filter { $0.type == "File" }.compactMap(\.content_id).filter { $0 > 0 }.map(String.init)
+        if !directIDs.isEmpty {
+            plan.materialGroups?.append(AssistMaterialGroup(id:"module-files",title:"Module files",sourceURL:plan.links.first,materialIDs:directIDs.reduce(into:[String]()) { if !$0.contains($1) { $0.append($1) } }))
+        }
         while !pageQueue.isEmpty && visitedPages.count < 100 {
             try Task.checkCancellation()
             let slug = pageQueue.removeFirst()
@@ -103,7 +108,9 @@ actor ModuleMaterialService {
                 guard object["published"] as? Bool != false, object["locked_for_user"] as? Bool != true else { throw CanvasAPIError.forbidden }
                 let html = object["body"] as? String ?? "", title = object["title"] as? String ?? slug
                 let source = "https://canvas.sydney.edu.au/courses/\(courseID)/pages/" + slug
-                plan.texts.append(AssistText(name:AssignmentAssistContent.safeName("Page - " + title + " - \(visitedPages.count).txt"),text:course + " — " + module.name + "\n" + title + "\nSource: " + source + "\n\n" + AssignmentAssistContent.text(html)))
+                let textName = AssignmentAssistContent.safeName("Page - " + title + " - \(visitedPages.count).txt")
+                var group = AssistMaterialGroup(id:"page:" + slug,title:title,sourceURL:source,materialIDs:[textName])
+                plan.texts.append(AssistText(name:textName,text:course + " — " + module.name + "\n" + title + "\nSource: " + source + "\n\n" + AssignmentAssistContent.text(html)))
                 plan.links.append(source)
                 for raw in AssignmentAssistContent.references(html) {
                     guard let url = AssignmentAssistContent.cleanURL(raw) else { continue }
@@ -111,10 +118,11 @@ actor ModuleMaterialService {
                     guard url.host == "canvas.sydney.edu.au" else { continue }
                     let parts = url.path.split(separator:"/").map(String.init)
                     if parts.count >= 4, parts[0] == "courses", parts[1] == String(courseID) {
-                        if parts[2] == "files", let id = Int(parts[3]), id > 0 { if !fileIDs.contains(id) { fileIDs.append(id) } }
+                        if parts[2] == "files", let id = Int(parts[3]), id > 0 { if !fileIDs.contains(id) { fileIDs.append(id) }; if !group.materialIDs.contains(String(id)) { group.materialIDs.append(String(id)) } }
                         if parts[2] == "pages", !otherModulePages.contains(parts[3]) { pageQueue.append(parts[3]) }
-                    } else if parts.count >= 2, parts[0] == "files", let id = Int(parts[1]), id > 0 { if !fileIDs.contains(id) { fileIDs.append(id) } }
+                    } else if parts.count >= 2, parts[0] == "files", let id = Int(parts[1]), id > 0 { if !fileIDs.contains(id) { fileIDs.append(id) }; if !group.materialIDs.contains(String(id)) { group.materialIDs.append(String(id)) } }
                 }
+                plan.materialGroups?.append(group)
             } catch is CancellationError { throw CancellationError() }
             catch CanvasAPIError.invalidKey { if var previous { previous.warnings.append("Canvas authentication failed; using saved module materials."); return previous }; throw CanvasAPIError.invalidKey }
             catch CanvasAPIError.server(429) { if var previous { previous.warnings.append("Canvas is limiting requests; using saved module materials."); return previous }; throw CanvasAPIError.server(429) }
@@ -133,6 +141,8 @@ actor ModuleMaterialService {
             plan.texts += previous.texts.filter { !refreshedSources.contains(source($0)) }
             for file in previous.files where !fileIDs.contains(file.id) { fileIDs.append(file.id) }
             plan.links += previous.links
+            let refreshedGroups = Set((plan.materialGroups ?? []).map(\.id))
+            plan.materialGroups! += (previous.materialGroups ?? []).filter { !refreshedGroups.contains($0.id) }
         }
         if !pageQueue.isEmpty { plan.warnings.append("Linked-page limit reached (100). Remaining pages are available in Canvas.") }
         if fileIDs.count > 1000 { plan.warnings.append("File limit reached (1,000). Remaining files are available in Canvas.") }
@@ -192,6 +202,17 @@ actor ModuleMaterialService {
         try persist(plan,name:"module-\(plan.courseID)-\(plan.assignmentID)")
         return (materials,plan)
     }
+    // UI and Downloads share these groups, including a safe fallback for older offline caches.
+    nonisolated static func groups(_ plan: AssignmentAssistPlan, materials: [AssignmentMaterial]) -> [AssistMaterialGroup] {
+        var groups = plan.materialGroups ?? []
+        let assigned = Set(groups.flatMap(\.materialIDs))
+        let unassigned = materials.filter { !assigned.contains($0.id) }
+        let files = unassigned.filter { Int($0.id) != nil }
+        if !files.isEmpty { groups.append(AssistMaterialGroup(id:"unassigned-files",title:"Other saved files",sourceURL:nil,materialIDs:files.map(\.id))) }
+        let information = unassigned.filter { Int($0.id) == nil }
+        if !information.isEmpty { groups.append(AssistMaterialGroup(id:"module-information",title:"Module information",sourceURL:nil,materialIDs:information.map(\.id))) }
+        return groups
+    }
     nonisolated static func numberedName(_ value: String, number: Int) -> String {
         let safe = AssignmentAssistContent.safeName(value)
         let ext = (safe as NSString).pathExtension
@@ -210,20 +231,35 @@ actor ModuleMaterialService {
             try Task.checkCancellation()
             let folder = stage.appendingPathComponent(AssignmentAssistContent.safeName(String(format:"%02d",module.position) + " - " + module.name + " (\(module.id))"))
             try fm.createDirectory(at:folder,withIntermediateDirectories:false)
-            var usedNames: Set<String> = ["collection notes.txt"]
-            for material in materials {
-                guard let source = material.url else { continue }
-                let name = AssignmentAssistContent.safeName(material.name)
-                var destination = folder.appendingPathComponent(name), number = 2
-                while usedNames.contains(destination.lastPathComponent.lowercased()) || fm.fileExists(atPath:destination.path) {
-                    try Task.checkCancellation()
-                    destination = folder.appendingPathComponent(numberedName(name,number:number)); number += 1
+            var usedFolders: Set<String> = ["collection notes.txt"]
+            for group in groups(plan,materials:materials) {
+                try Task.checkCancellation()
+                let base = AssignmentAssistContent.safeName(group.title)
+                var folderName = base, suffix = 2
+                while usedFolders.contains(folderName.lowercased()) {
+                    folderName = numberedName(base,number:suffix); suffix += 1
                 }
-                usedNames.insert(destination.lastPathComponent.lowercased())
-                try fm.copyItem(at:source,to:destination)
-                try fm.setAttributes([.posixPermissions:0o600],ofItemAtPath:destination.path)
+                usedFolders.insert(folderName.lowercased())
+                let pageFolder = folder.appendingPathComponent(folderName)
+                try fm.createDirectory(at:pageFolder,withIntermediateDirectories:false)
+                var usedNames: Set<String> = ["page source.txt"]
+                for material in materials where group.materialIDs.contains(material.id) {
+                    guard let source = material.url else { continue }
+                    let name = AssignmentAssistContent.safeName(material.name)
+                    var destination = pageFolder.appendingPathComponent(name), number = 2
+                    while usedNames.contains(destination.lastPathComponent.lowercased()) || fm.fileExists(atPath:destination.path) {
+                        try Task.checkCancellation()
+                        destination = pageFolder.appendingPathComponent(numberedName(name,number:number)); number += 1
+                    }
+                    usedNames.insert(destination.lastPathComponent.lowercased())
+                    try fm.copyItem(at:source,to:destination)
+                    try fm.setAttributes([.posixPermissions:0o600],ofItemAtPath:destination.path)
+                }
+                if let source = group.sourceURL, let clean = AssignmentAssistContent.cleanURL(source) {
+                    try (course + " — " + module.name + "\n" + group.title + "\n" + clean.absoluteString + "\n").write(to:pageFolder.appendingPathComponent("Page source.txt"),atomically:true,encoding:.utf8)
+                }
             }
-            let notes = [course + " — " + module.name,"Teaching materials only. External tools, assignments, discussions and quizzes are linked in Source links.txt."] + plan.warnings + materials.filter { $0.url == nil }.map { $0.name + ": " + $0.note }
+            let notes = [course + " — " + module.name,"Teaching materials only. Files are grouped by their Canvas page. Shared attachments appear in each source page folder. External tools, assignments, discussions and quizzes are linked in Module information/Source links.txt."] + plan.warnings + materials.filter { $0.url == nil }.map { $0.name + ": " + $0.note }
             try notes.joined(separator:"\n").write(to:folder.appendingPathComponent("Collection notes.txt"),atomically:true,encoding:.utf8)
         }
         let base = AssignmentAssistContent.safeName(course + " - " + (modules.count == 1 ? modules[0].0.name : "All modules"))

@@ -4,6 +4,12 @@ struct AssistText: Codable, Sendable {
     var name: String
     var text: String
 }
+struct AssistMaterialGroup: Codable, Sendable, Identifiable {
+    var id: String
+    var title: String
+    var sourceURL: String?
+    var materialIDs: [String]
+}
 struct AssignmentAssistPlan: Codable, Sendable {
     var course: String
     var title: String
@@ -16,6 +22,7 @@ struct AssignmentAssistPlan: Codable, Sendable {
     var outlineURL: String = ""
     var warnings: [String] = []
     var unavailableTextNames: Set<String>? = nil
+    var materialGroups: [AssistMaterialGroup]? = nil
 }
 enum AssignmentAssistContent {
     static func rubric(_ item: FeedbackItem) -> String {

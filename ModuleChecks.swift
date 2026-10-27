@@ -13,9 +13,10 @@ final class ModuleProtocol: URLProtocol, @unchecked Sendable {
         if url.path.hasSuffix("/modules") {
             if url.query?.contains("page=2") == true { body = #"[{"id":2,"name":"Week 2","position":2}]"# }
             else { body = #"[{"id":1,"name":"Week 1","position":1}]"#; headers["Link"] = "<https://canvas.sydney.edu.au/api/v1/courses/42/modules?page=2>; rel=\"next\"" }
-        } else if url.path.contains("/modules/1/items") { body = #"[{"id":10,"module_id":1,"title":"Lecture","type":"File","content_id":100},{"id":11,"module_id":1,"title":"Lecture again","type":"File","content_id":100},{"id":13,"module_id":1,"title":"Reading page","type":"Page","page_url":"reading"},{"id":12,"module_id":1,"title":"Reading","type":"ExternalUrl","external_url":"https://example.com/reading?token=secret"}]"# }
+        } else if url.path.contains("/modules/1/items") { body = #"[{"id":10,"module_id":1,"title":"Lecture","type":"File","content_id":100},{"id":11,"module_id":1,"title":"Lecture again","type":"File","content_id":100},{"id":13,"module_id":1,"title":"Reading page","type":"Page","page_url":"reading"},{"id":14,"module_id":1,"title":"Solutions page","type":"Page","page_url":"solutions"},{"id":12,"module_id":1,"title":"Reading","type":"ExternalUrl","external_url":"https://example.com/reading?token=secret"}]"# }
         else if url.path.contains("/modules/2/items") { body = #"[{"id":20,"module_id":2,"title":"Locked","type":"File","content_id":101}]"# }
         else if url.path.hasSuffix("/pages/reading") { body = #"{"title":"Reading page","published":true,"body":"<p>Read this example</p><a href=\"/courses/42/files/99\">Worksheet</a>"}"# }
+        else if url.path.hasSuffix("/pages/solutions") { body = #"{"title":"Reading page","published":true,"body":"<a href=\"/courses/42/files/99\">Shared worksheet</a><a href=\"/courses/999/files/888\">Other course</a>"}"# }
         else if url.path.hasSuffix("/files/99") { body = #"{"id":99,"display_name":"Example.html","url":"https://canvas.sydney.edu.au/files/99/download","content-type":"text/html","size":15}"# }
         else if url.path == "/api/v1/courses/42/files/100" { status = 403; body = "Forbidden" }
         else if url.path.hasSuffix("/files/100") { body = #"{"id":100,"hidden_for_user":true,"locked_for_user":false,"display_name":"Lecture.txt","url":"https://canvas.sydney.edu.au/files/100/download","content-type":"text/plain","size":5}"# }
@@ -35,10 +36,13 @@ final class ModuleProtocol: URLProtocol, @unchecked Sendable {
     let service = ModuleMaterialService(directory:root, api:FeedbackAPI(session:session))
     let modules = try await service.catalog(courseID:42,token:"synthetic")
     precondition(modules.map(\.id) == [1,2], "all module pages and order")
-    precondition(modules[0].items.count == 4)
+    precondition(modules[0].items.count == 5)
     let plan = try await service.prepare(modules[0],courseID:42,course:"TEST1000",token:"synthetic")
     precondition(plan.files.map(\.id) == [100,99], "deduplicate while preserving module discovery order")
     precondition(plan.links.contains("https://example.com/reading"), "strip sensitive query selectors")
+    precondition(plan.materialGroups?.map(\.id) == ["module-files","page:reading","page:solutions"], "Preserve direct files and each source page in Canvas order")
+    precondition(plan.materialGroups?.filter { $0.materialIDs.contains("99") }.count == 2, "Shared attachments retain both source pages without duplicate downloads")
+    precondition(!plan.files.contains { $0.id == 888 }, "Never collect another course's linked files")
     let locked = try await service.prepare(modules[1],courseID:42,course:"TEST1000",token:"synthetic")
     precondition(locked.files.isEmpty && !locked.warnings.isEmpty, "locked is never a fake ready file")
     var cachedPlan = plan
@@ -52,7 +56,30 @@ final class ModuleProtocol: URLProtocol, @unchecked Sendable {
     precondition(offlinePlan.texts.map(\.text) == plan.texts.map(\.text), "offline refresh retains page text")
     precondition(Set(offlinePlan.files.map(\.id)) == [100,99], "offline refresh retains page-linked file discoveries")
     let offlineReady = try await service.ready(offlinePlan,token:nil).0
-    precondition(offlineReady.filter { $0.url != nil }.count == 4, "cached files/pages/source links stay reusable offline")
+    precondition(offlineReady.filter { $0.url != nil }.count == 5, "cached files/pages/source links stay reusable offline")
+    precondition(offlinePlan.materialGroups?.map(\.id) == plan.materialGroups?.map(\.id), "Offline refresh retains page provenance")
+    let groupedOutput = try ModuleMaterialService.export([(modules[0],offlineReady,offlinePlan)],course:"TEST1000",to:root.appendingPathComponent("Grouped"))
+    let moduleFolder = try FileManager.default.contentsOfDirectory(at:groupedOutput,includingPropertiesForKeys:nil).first!
+    let pageCopy = moduleFolder.appendingPathComponent("Reading page/Example.html")
+    let sharedCopy = moduleFolder.appendingPathComponent("Reading page (2)/Example.html")
+    let expectedHTML = Data("<html>Example</html>".utf8)
+    let firstBytes = try Data(contentsOf:pageCopy), secondBytes = try Data(contentsOf:sharedCopy)
+    precondition(firstBytes == expectedHTML && secondBytes == expectedHTML, "Both source folders contain exact original attachment bytes")
+    precondition(FileManager.default.fileExists(atPath:moduleFolder.appendingPathComponent("Module files/Lecture.txt").path))
+    let sourceText = try String(contentsOf:moduleFolder.appendingPathComponent("Reading page/Page source.txt"),encoding:.utf8)
+    precondition(sourceText.contains("/courses/42/pages/reading"), "Source context travels with exported folders")
+    var legacyJSON = try JSONSerialization.jsonObject(with:JSONEncoder().encode(plan)) as! [String:Any]
+    legacyJSON.removeValue(forKey:"materialGroups")
+    let legacy = try JSONDecoder().decode(AssignmentAssistPlan.self,from:JSONSerialization.data(withJSONObject:legacyJSON))
+    precondition(legacy.materialGroups == nil)
+    let fallback = ModuleMaterialService.groups(legacy,materials:offlineReady)
+    precondition(fallback.contains { $0.title == "Other saved files" && $0.materialIDs.contains("99") }, "Legacy offline files remain available without invented source pages")
+    var unsafe = plan
+    unsafe.materialGroups = [AssistMaterialGroup(id:"a",title:"../Tutorial/Prep",materialIDs:["99"]),AssistMaterialGroup(id:"b",title:"../tutorial/prep",materialIDs:["99"])]
+    let safeExport = try ModuleMaterialService.export([(modules[0],offlineReady,unsafe)],course:"TEST1000",to:root.appendingPathComponent("Safe"))
+    let safeFiles = FileManager.default.enumerator(at:safeExport,includingPropertiesForKeys:nil)!.allObjects as! [URL]
+    precondition(safeFiles.filter { $0.lastPathComponent == "Example.html" }.count == 2, "Sanitised, case-insensitive page-folder collisions retain all attachments")
+    print("PASS: source-page grouping, shared attachment copies, exact bytes, safe duplicate folders, source links and legacy/offline provenance")
     ModuleProtocol.offline = false
     let bytes = root.appendingPathComponent("Lecture.txt"); try Data("hello".utf8).write(to:bytes)
     let longName = String(repeating:"a",count:176) + ".txt"

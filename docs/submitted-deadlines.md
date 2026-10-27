@@ -14,3 +14,11 @@ References checked through Context7 and official documentation:
 Verification: synthetic API checks require the submission query association and validate decoding. Model checks cover submitted, pending-review and graded-with-submission states; missing/null associations; missing-work grades; reassignment; mixed and complete groups; and offline encode/decode. Native visual checks used isolated synthetic coursework without credential access: the submitted title visibly displayed a strikethrough and Submitted label, unsubmitted titles retained their normal appearance, and clicking the crossed-out title opened the selected assignment. The installed app successfully refreshed and persisted submission associations using its existing credential reader.
 
 Countdown follow-up verification: regression assertions first failed against the previous selection logic, then passed after excluding submitted rows. Checks cover both display modes, mixed groups, all-submitted work and past deadlines.
+
+## Hide submitted
+
+A native macOS checkbox directly above the agenda filters submitted assignments individually, preserving unfinished members of mixed groups. Empty groups and their date headings disappear; turning the checkbox off restores the unchanged source rows. `AppStorage` remembers the user's choice, initially off, without changing the menu bar countdown's independent outstanding-work rule. The checkbox remains visible when filtering leaves no assignments, with guidance to turn it off to see submitted work.
+
+The [Apple HIG toggles guidance](https://developer.apple.com/design/human-interface-guidelines/toggles) and [SwiftUI checkbox documentation](https://developer.apple.com/documentation/swiftui/togglestyle/checkbox), checked through Context7, support a labelled native checkbox for this binary display preference. Reminders' show-completed pattern remains the comparable behaviour.
+
+Verified with synthetic model checks for mixed groups, fully completed groups, empty input, ordering/context preservation, restoration and date headings. In an isolated native demo, enabling the checkbox removed a submitted assignment and its otherwise empty date heading; reopening retained the checked preference; clicking whitespace to the right of the label restored both the assignment and date heading. No credentials were accessed by the demo.

@@ -96,6 +96,15 @@ enum Deadlines {
         return result.sorted { $0.due == $1.due ? $0.course < $1.course : $0.due < $1.due }
     }
 
+    static func visibleRows(_ rows: [DeadlineRow], hideSubmitted: Bool) -> [DeadlineRow] {
+        guard hideSubmitted else { return rows }
+        return rows.compactMap { row in
+            let remaining = row.assignments.filter { !$0.isSubmitted }
+            guard !remaining.isEmpty else { return nil }
+            return DeadlineRow(id: row.id, course: row.course, due: row.due, assignments: remaining)
+        }
+    }
+
     static func label(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_AU")

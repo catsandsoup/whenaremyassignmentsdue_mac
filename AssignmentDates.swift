@@ -58,8 +58,9 @@ struct DeadlinesView: View {
     @ObservedObject var store: CanvasStore
     @State private var showingUpdateWarning = false
     @AppStorage("feedbackReadingSize") private var readingStep = 0
+    @AppStorage("agendaHideSubmitted") private var hideSubmitted = false
     @State private var agendaHeight: CGFloat = 420
-    var days: [AgendaDay] { AgendaDay.grouped(store.displayedRows) }
+    var days: [AgendaDay] { AgendaDay.grouped(Deadlines.visibleRows(store.displayedRows, hideSubmitted: hideSubmitted)) }
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -68,7 +69,18 @@ struct DeadlinesView: View {
                 if store.syncing { ProgressView().controlSize(.small).accessibilityLabel("Updating deadlines") }
             }
             Divider()
-            if days.isEmpty { Text("No upcoming dated assignments.") }
+            Toggle(isOn: $hideSubmitted) {
+                Text("Hide submitted")
+                    .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .toggleStyle(.checkbox)
+            .help("Hide assignments already submitted to Canvas. Turn off to show them again.")
+            if days.isEmpty {
+                Text(hideSubmitted && !store.displayedRows.isEmpty
+                     ? "No outstanding dated assignments. Turn off Hide submitted to see submitted work."
+                     : "No upcoming dated assignments.")
+            }
             else {
                 ScrollView {
                     agenda.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { agendaHeight = $0 }
